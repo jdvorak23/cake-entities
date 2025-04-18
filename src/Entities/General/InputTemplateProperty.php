@@ -13,6 +13,8 @@ class InputTemplateProperty extends CakeEntity
     public string $name;
 
     public string $pattern;
+
+    public string $value;
     public ?DateTime $created;
     public ?DateTime $modified;
 }
