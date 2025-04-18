@@ -1,6 +1,6 @@
 <?php
 
-namespace Cesys\CakeEntities;
+namespace Cesys\CakeEntities\Model;
 
 use Cesys\CakeEntities\Entities\CakeEntity;
 use Cesys\CakeEntities\Entities\Relation;
@@ -15,7 +15,7 @@ trait EntityAppModel
     /**
      * @param array $params
      * @param array|null $contains
-     * @return ?T
+     * @return ?CakeEntity
      */
     public function findEntity(array $params = [], ?array $contains = null)
     {
@@ -27,7 +27,7 @@ trait EntityAppModel
     /**
      * @param array $params
      * @param array|null $contains
-     * @return T[]
+     * @return CakeEntity
      */
     public function findEntities(array $params = [], ?array $contains = null): array
     {
@@ -39,7 +39,7 @@ trait EntityAppModel
         $entityClass = static::getEntityClass();
         $entities = [];
         foreach ($entitiesData as $entityData) {
-            /** @var T $entity */
+            /** @var CakeEntity $entity */
             $entity = $entityClass::createFromDbArray($entityData[$this->alias]);
             $this->entities[$entity->getPrimary()] = $entity;
             $entities[$entity->getPrimary()] = $entity;
@@ -50,7 +50,7 @@ trait EntityAppModel
     }
 
     /**
-     * @param T[] $entities
+     * @param CakeEntity $entities
      * @param ?array $contains
      */
     private function addReferencedEntities(array $entities, ?array $contains): void
@@ -109,7 +109,7 @@ trait EntityAppModel
     }
 
     /**
-     * @param T[] $entities
+     * @param CakeEntity $entities
      * @param ?array $contains
      */
     private function addRelatedEntities(array $entities, ?array $contains): void
@@ -179,7 +179,7 @@ trait EntityAppModel
     /**
      * @param $id
      * @param bool $useCache
-     * @return ?T
+     * @return ?CakeEntity
      */
     public function getEntity($id, bool $useCache = true)
     {
