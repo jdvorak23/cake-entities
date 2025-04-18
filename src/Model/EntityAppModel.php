@@ -15,7 +15,7 @@ trait EntityAppModel
     /**
      * @param array $params
      * @param array|null $contains
-     * @return ?CakeEntity
+     * @return ?T
      */
     public function findEntity(array $params = [], ?array $contains = null)
     {
@@ -27,7 +27,7 @@ trait EntityAppModel
     /**
      * @param array $params
      * @param array|null $contains
-     * @return CakeEntity
+     * @return T[]
      */
     public function findEntities(array $params = [], ?array $contains = null): array
     {
@@ -50,7 +50,7 @@ trait EntityAppModel
     }
 
     /**
-     * @param CakeEntity $entities
+     * @param CakeEntity[] $entities
      * @param ?array $contains
      */
     private function addReferencedEntities(array $entities, ?array $contains): void
@@ -72,7 +72,7 @@ trait EntityAppModel
                 continue;
             }
             $Model = $this->getModel($modelClass);
-            if ( ! $Model instanceof self) {
+            if ( ! in_array(EntityAppModel::class, static::traitUsesRecursive(static::class))) {
                 throw new \InvalidArgumentException("Model '$modelClass' included in \$contains parameter is not instance of EntityAppModel.");
             }
 
@@ -109,7 +109,7 @@ trait EntityAppModel
     }
 
     /**
-     * @param CakeEntity $entities
+     * @param CakeEntity[] $entities
      * @param ?array $contains
      */
     private function addRelatedEntities(array $entities, ?array $contains): void
@@ -130,7 +130,7 @@ trait EntityAppModel
                 continue;
             }
             $Model = $this->getModel($modelClass);
-            if ( ! $Model instanceof self) {
+            if ( ! in_array(EntityAppModel::class, static::traitUsesRecursive(static::class))) {
                 throw new \InvalidArgumentException("Model '$modelClass' included in \$contains parameter is not instance of EntityAppModel.");
             }
 
@@ -179,7 +179,7 @@ trait EntityAppModel
     /**
      * @param $id
      * @param bool $useCache
-     * @return ?CakeEntity
+     * @return ?T
      */
     public function getEntity($id, bool $useCache = true)
     {
@@ -208,5 +208,27 @@ trait EntityAppModel
     public static function fromSnakeCaseToCamelCase(string $string): string
     {
         return lcfirst(str_replace('_', '', ucwords($string, '_')));
+    }
+
+    public static function getUsedTraits(string $class): array
+    {
+        $results = [];
+
+        foreach (array_reverse(class_parents($class)) + [$class => $class] as $class) {
+            $results += static::traitUsesRecursive($class);
+        }
+
+        return array_unique($results);
+    }
+
+    private static function traitUsesRecursive(string $trait)
+    {
+        $traits = class_uses($trait);
+
+        foreach ($traits as $trait) {
+            $traits += static::traitUsesRecursive($trait);
+        }
+
+        return $traits;
     }
 }
