@@ -16,4 +16,9 @@ class InputTemplate extends CakeEntity
     public string $invoiceType;
     public ?DateTime $created;
     public ?DateTime $modified;
+
+    /**
+     * @var InputTemplateProperty[] input_template_id
+     */
+    public array $properties;
 }
