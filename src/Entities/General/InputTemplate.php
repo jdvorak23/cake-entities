@@ -25,7 +25,7 @@ class InputTemplate extends CakeEntity
     public function getProperty(string $propertyName): ?InputTemplateProperty
     {
         foreach ($this->properties as $property) {
-            if ($property->name === $propertyName) {
+            if ($property->getName() === $propertyName) {
                 return $property;
             }
         }
