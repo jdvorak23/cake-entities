@@ -155,8 +155,9 @@ trait EntityAppModel
                 : [];
 
             $relatedProperty = static::fromSnakeCaseToCamelCase($relation->column);
+            /** @var T $relatedEntity */
             foreach ($relatedEntities as $relatedEntity) {
-                $entities[$relatedEntity->{$relatedProperty}]->{$propertyName}[] = $relatedEntity;
+                $entities[$relatedEntity->{$relatedProperty}]->{$propertyName}[$relatedEntity->getPrimary()] = $relatedEntity;
             }
         }
     }
