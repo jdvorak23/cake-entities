@@ -2,7 +2,8 @@
 
 namespace Cesys\CakeEntities\Entities;
 
-use Nette\Utils\Reflection;
+use Cesys\Utils\Strings;
+use Cesys\Utils\Reflection;
 
 require_once __DIR__ . '/Relation.php';
 
@@ -36,7 +37,7 @@ abstract class CakeEntity
             if ( ! $property->isInitialized($this)) {
                 continue;
             }
-            $column = static::fromCamelCaseToSnakeCase($propertyName);
+            $column = Strings::fromCamelCaseToSnakeCase($propertyName);
             $value = $this->{$propertyName};
             $type = $property->getType();
             if ( ! $type || $value === null) {
@@ -64,7 +65,7 @@ abstract class CakeEntity
     {
         $entity = new static();
         foreach ($data as $column => $value) {
-            $propertyName = static::fromSnakeCaseToCamelCase($column);
+            $propertyName = Strings::fromSnakeCaseToCamelCase($column);
             if ( ! array_key_exists($propertyName, static::getProperties())) {
                 continue;
             }
@@ -90,7 +91,7 @@ abstract class CakeEntity
             return self::$properties[static::class];
         }
         $result = [];
-        $rc = new \ReflectionClass(static::class);
+        $rc = Reflection::getReflectionClass(static::class);
         foreach ($rc->getProperties() as $property) {
             if ($property->isPrivate() || $property->isProtected() || in_array($property->getName(), static::getExcludedFromProperties(), true)) {
                 continue;
@@ -113,8 +114,7 @@ abstract class CakeEntity
     public static function getPropertiesOfReferencedEntities(): array
     {
         $result = [];
-        //todo použít reflection helper
-        $rc = new \ReflectionClass(static::class);
+		$rc = Reflection::getReflectionClass(static::class);
         foreach ($rc->getProperties() as $property) {
             if ($type = $property->getType()) {
                 if (is_a($type->getName(), self::class, true)) {
@@ -134,7 +134,7 @@ abstract class CakeEntity
     public static function getPropertiesOfRelatedEntities(): array
     {
         $result = [];
-        $rc = new \ReflectionClass(static::class);
+        $rc = Reflection::getReflectionClass(static::class);
         foreach ($rc->getProperties() as $property) {
             if ( ! $type = $property->getType()) {
                 continue;
@@ -143,7 +143,7 @@ abstract class CakeEntity
                 continue;
             }
 
-            if ($annotation = static::parseAnnotation($property, 'var')) {
+            if ($annotation = Reflection::parseAnnotation($property, 'var')) {
                 [$annotationType, $column] = preg_split('/[\s\t]+/', trim($annotation), -1, PREG_SPLIT_NO_EMPTY);
                 if ( ! $annotationType || ! $column) {
                     continue;
@@ -160,22 +160,6 @@ abstract class CakeEntity
             }
         }
         return $result;
-    }
-
-    /**
-     * TODO Přesunout do reflection helperu
-     * @param \ReflectionProperty $ref
-     * @param string $name
-     * @return string|null
-     */
-    public static function parseAnnotation(\ReflectionProperty $ref, string $name): ?string
-    {
-        $re = '#[\s*]@' . preg_quote($name, '#') . '(?=\s|$)[ \t]+(.+)?#';
-        if ($ref->getDocComment() && preg_match($re, trim($ref->getDocComment(), '/*'), $m)) {
-            return $m[1] ?? '';
-        }
-
-        return null;
     }
 
     public static function getExcludedFromDbArray(): array
@@ -195,33 +179,7 @@ abstract class CakeEntity
 
     public static function getModelClass(): string
     {
-        // todo ReflectionHelper
-        $rc = new \ReflectionClass(static::class);
-        return $rc->getShortName();
+        return Reflection::getReflectionClass(static::class)->getShortName();
     }
 
-    /**
-     * todo použít utils
-     * @param string $string
-     * @return string
-     */
-    public static function fromCamelCaseToSnakeCase(string $string): string
-    {
-        preg_match_all('!([A-Z][A-Z0-9]*(?=$|[A-Z][a-z0-9])|[A-Za-z][a-z0-9]+)!', $string, $matches);
-        $ret = $matches[0];
-        foreach ($ret as &$match) {
-            $match = $match == strtoupper($match) ? strtolower($match) : lcfirst($match);
-        }
-        return implode('_', $ret);
-    }
-
-    /**
-     * todo použít utils
-     * @param string $string
-     * @return string
-     */
-    public static function fromSnakeCaseToCamelCase(string $string): string
-    {
-        return lcfirst(str_replace('_', '', ucwords($string, '_')));
-    }
 }

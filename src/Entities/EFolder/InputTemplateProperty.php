@@ -1,9 +1,8 @@
 <?php
 
-namespace Cesys\CakeEntities\Entities\General;
+namespace Cesys\CakeEntities\Entities\EFolder;
 
 use Cesys\CakeEntities\Entities\CakeEntity;
-use Cesys\CakeEntities\Entities\EFolder\TemplatePattern;
 use Nette\Utils\DateTime;
 
 class InputTemplateProperty extends CakeEntity

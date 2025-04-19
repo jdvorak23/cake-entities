@@ -5,13 +5,19 @@ namespace Cesys\CakeEntities\Entities\EFolder;
 use Cesys\CakeEntities\Entities\CakeEntity;
 use Nette\Utils\DateTime;
 
-class TemplateProperty extends CakeEntity
+class FileProperty extends CakeEntity
 {
     public int $id;
-    public string $name;
 
-	public string $type;
+	public int $fileId;
+
+	public int $templatePropertyId;
+
+	public string $value;
+	
     public ?DateTime $created;
     public ?DateTime $modified;
+
+	public TemplateProperty $templateProperty;
 
 }

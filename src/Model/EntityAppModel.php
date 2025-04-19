@@ -4,6 +4,8 @@ namespace Cesys\CakeEntities\Model;
 
 use Cesys\CakeEntities\Entities\CakeEntity;
 use Cesys\CakeEntities\Entities\Relation;
+use Cesys\Utils\Reflection;
+use Cesys\Utils\Strings;
 
 /**
  * @template T of CakeEntity
@@ -36,7 +38,7 @@ trait EntityAppModel
             $params['fields'][] = $this->primaryKey;
         }
         $entitiesData = $this->find('all', $params);
-        $entityClass = static::getEntityClass();
+        $entityClass = $this->getEntityClass();
         $entities = [];
         foreach ($entitiesData as $entityData) {
             /** @var CakeEntity $entity */
@@ -65,14 +67,14 @@ trait EntityAppModel
         $containedModels = array_keys($contains);
 
         /** @var \ReflectionProperty $property */
-        foreach ((static::getEntityClass())::getPropertiesOfReferencedEntities() as $keyPropertyName => $property) {
+        foreach (($this->getEntityClass())::getPropertiesOfReferencedEntities() as $keyPropertyName => $property) {
             $referencedEntityClass = $property->getType()->getName();
             $modelClass = $referencedEntityClass::getModelClass();
             if ( ! in_array($modelClass, $containedModels, true)) {
                 continue;
             }
             $Model = $this->getModel($modelClass);
-            if ( ! in_array(EntityAppModel::class, static::traitUsesRecursive(static::class))) {
+            if ( ! in_array(EntityAppModel::class, Reflection::getUsedTraits(static::class))) {
                 throw new \InvalidArgumentException("Model '$modelClass' included in \$contains parameter is not instance of EntityAppModel.");
             }
 
@@ -124,13 +126,13 @@ trait EntityAppModel
         $containedModels = array_keys($contains);
 
         /** @var Relation $relation */
-        foreach ((static::getEntityClass())::getPropertiesOfRelatedEntities() as $propertyName => $relation) {
+        foreach (($this->getEntityClass())::getPropertiesOfRelatedEntities() as $propertyName => $relation) {
             $modelClass = $relation->relatedEntityClass::getModelClass();
             if ( ! in_array($modelClass, $containedModels, true)) {
                 continue;
             }
             $Model = $this->getModel($modelClass);
-            if ( ! in_array(EntityAppModel::class, static::traitUsesRecursive(static::class))) {
+            if ( ! in_array(EntityAppModel::class, Reflection::getUsedTraits(static::class))) {
                 throw new \InvalidArgumentException("Model '$modelClass' included in \$contains parameter is not instance of EntityAppModel.");
             }
 
@@ -154,7 +156,7 @@ trait EntityAppModel
                 ? $Model->findEntities($params, $relatedContains)
                 : [];
 
-            $relatedProperty = static::fromSnakeCaseToCamelCase($relation->column);
+            $relatedProperty = Strings::fromSnakeCaseToCamelCase($relation->column);
             /** @var T $relatedEntity */
             foreach ($relatedEntities as $relatedEntity) {
                 $entities[$relatedEntity->{$relatedProperty}]->{$propertyName}[$relatedEntity->getPrimary()] = $relatedEntity;
@@ -195,10 +197,12 @@ trait EntityAppModel
         return $this->findEntity(['conditions' => [$this->primaryKey => $id]]);
     }
 
-    public static function getEntityClass(): string
+    public function getEntityClass(): string
     {
         $classWithoutNamespace = static::class;
-        return "\\Cesys\\CakeEntities\\Entities\\General\\$classWithoutNamespace";
+		// todo podle názvu db
+		$subNamespace = ucfirst(Strings::fromSnakeCaseToCamelCase($this->useDbConfig));
+        return "\\Cesys\\CakeEntities\\Entities\\$subNamespace\\$classWithoutNamespace";
     }
 
     public static function getDefaultContains(): array
@@ -206,30 +210,4 @@ trait EntityAppModel
         return [];
     }
 
-    public static function fromSnakeCaseToCamelCase(string $string): string
-    {
-        return lcfirst(str_replace('_', '', ucwords($string, '_')));
-    }
-
-    public static function getUsedTraits(string $class): array
-    {
-        $results = [];
-
-        foreach (array_reverse(class_parents($class)) + [$class => $class] as $class) {
-            $results += static::traitUsesRecursive($class);
-        }
-
-        return array_unique($results);
-    }
-
-    private static function traitUsesRecursive(string $trait)
-    {
-        $traits = class_uses($trait);
-
-        foreach ($traits as $trait) {
-            $traits += static::traitUsesRecursive($trait);
-        }
-
-        return $traits;
-    }
 }
