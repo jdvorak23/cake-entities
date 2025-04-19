@@ -1,15 +1,23 @@
 {
     "name": "jdvorak23/cake-entities",
     "description": "Entities for CakePHP 1.2",
-    "keywords": ["cake", "cakephp", "entity"],
-    "homepage" : "https://github.com/jdvorak23/cake-entities",
+    "version": "0.1",
+    "type": "library",
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/jdvorak23/utils"
+        }
+    ],
+    "require": {
+        "php": ">=7.4",
+        "nette/utils": "^3.0",
+        "jdvorak23/utils": "dev-master"
+    },
     "autoload": {
         "psr-4": {
             "Cesys\\CakeEntities\\": "src/"
         }
     },
-    "require": {
-        "php": ">=7.4",
-        "nette/utils": "^3.0"
-    }
+    "minimum-stability": "dev"
 }
