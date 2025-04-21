@@ -26,6 +26,12 @@ abstract class CakeEntity
         return $rp->getValue($this);
     }
 
+    public function setPrimary($value)
+    {
+        $rp = static::getProperties()[static::getPrimaryPropertyName()];
+        $rp->setValue($this, $value);
+    }
+
 
     public function toDbArray(): array
     {
@@ -114,8 +120,7 @@ abstract class CakeEntity
     public static function getPropertiesOfReferencedEntities(): array
     {
         $result = [];
-		$rc = Reflection::getReflectionClass(static::class);
-        foreach ($rc->getProperties() as $property) {
+        foreach (Reflection::getReflectionPropertiesOfClass(static::class) as $property) {
             if ($type = $property->getType()) {
                 if (is_a($type->getName(), self::class, true)) {
                     $keyPropertyName = $property->getName() . 'Id';

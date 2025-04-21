@@ -8,16 +8,46 @@ use Cesys\Utils\Reflection;
 use Cesys\Utils\Strings;
 
 /**
- * @template T of CakeEntity
+ * @template E of CakeEntity
  */
 trait EntityAppModel
 {
-    private array $entities = [];
+    protected array $entities = [];
+
+    private array $defaults;
+
+    private string $entityClass;
+
+    /**
+     * todo popis
+     * @return array
+     */
+    public static function getDefaultContains(): array
+    {
+        return [];
+    }
+
+
+    /**
+     * @return class-string<E>
+     */
+    public function getEntityClass(): string
+    {
+        if (isset($this->entityClass)) {
+            return $this->entityClass;
+        }
+        $classWithoutNamespace = static::class;
+        $database = \ConnectionManager::getInstance()->config->{$this->useDbConfig}['database'];
+        $database = static::SERVER_DEFAULT_SUB_NAMESPACE[$database] ?? $database;
+        $subNamespace = ucfirst(Strings::fromSnakeCaseToCamelCase($database));
+        return $this->entityClass = "\\Cesys\\CakeEntities\\Entities\\$subNamespace\\$classWithoutNamespace";
+    }
+
 
     /**
      * @param array $params
      * @param array|null $contains
-     * @return ?T
+     * @return ?E
      */
     public function findEntity(array $params = [], ?array $contains = null)
     {
@@ -26,10 +56,30 @@ trait EntityAppModel
         return $entities ? current($entities) : null;
     }
 
+
+    /**
+     * @param $id
+     * @param bool $useCache
+     * @return ?E
+     */
+    public function getEntity($id, bool $useCache = true)
+    {
+        if ( ! $id = current($this->filterIds([$id]))) {
+            return null;
+        }
+
+        if ($useCache && isset($this->entities[$id])) {
+            return $this->entities[$id];
+        }
+
+        return $this->findEntity(['conditions' => [$this->primaryKey => $id]]);
+    }
+
+
     /**
      * @param array $params
      * @param array|null $contains
-     * @return T[]
+     * @return E[]
      */
     public function findEntities(array $params = [], ?array $contains = null): array
     {
@@ -38,21 +88,181 @@ trait EntityAppModel
             $params['fields'][] = $this->primaryKey;
         }
         $entitiesData = $this->find('all', $params);
-        $entityClass = $this->getEntityClass();
+
         $entities = [];
         foreach ($entitiesData as $entityData) {
-            /** @var CakeEntity $entity */
-            $entity = $entityClass::createFromDbArray($entityData[$this->alias]);
-            $this->entities[$entity->getPrimary()] = $entity;
+            $entity = $this->createEntity($entityData);
             $entities[$entity->getPrimary()] = $entity;
+            $this->entities[$entity->getPrimary()] = $entity;
         }
         $this->addReferencedEntities($entities, $contains);
         $this->addRelatedEntities($entities, $contains);
+
         return $entities;
     }
 
+
     /**
-     * @param CakeEntity[] $entities
+     * @param $ids
+     * @param bool $useCache
+     * @return E[]
+     */
+    public function getEntities($ids, bool $useCache = true): array
+    {
+        $ids = $this->filterIds($ids);
+        if ( ! $ids) {
+            return [];
+        }
+        $fetchIds = [];
+        if ($useCache) {
+            foreach ($ids as $id) {
+                if ( ! isset($this->entities[$id])) {
+                    $fetchIds[] = $id;
+                }
+            }
+        } else {
+            $fetchIds = $ids;
+        }
+
+        if ($fetchIds) {
+            $this->findEntities(['conditions' => [$this->primaryKey => $fetchIds]]);
+        }
+
+        $result = [];
+        foreach ($ids as $id) {
+            if (isset($this->entities[$id])) {
+                $result[$id] = $this->entities[$id];
+            }
+        }
+
+        return $result;
+    }
+
+
+    /**
+     * @param ?array $data
+     * @return E
+     */
+    public function createEntity(?array $data = null)
+    {
+        if ($data === null) {
+            $data = $this->getDefaults();
+        } else {
+            $data = $data[$this->alias] ?? $data;
+        }
+        /** @var class-string<E> $entityClass */
+        $entityClass = $this->getEntityClass();
+        return $entityClass::createFromDbArray($data);
+    }
+
+    /**
+     * @param E $entity
+     * @return bool
+     */
+    public function saveEntity(CakeEntity $entity, array $appendData = []): bool
+    {
+        $data = $entity->toDbArray();
+        $now = date('Y-m-d H:i:s');
+
+        $hasCreated = false;
+        if ($entity->getPrimary() === null) {
+            if ($created = $this->schema('created')) {
+                if ($created['type'] === 'datetime') {
+                    $data['created'] = $now;
+                    $hasCreated = true;
+                }
+            }
+            $this->create();
+        }
+
+        $hasModified = false;
+        if ($modified = $this->schema('modified')) {
+            if ($modified['type'] === 'datetime') {
+                $data['modified'] = $now;
+                $hasModified = true;
+            }
+        }
+
+        $data = array_merge($data, $appendData);
+
+        $result = $this->save([$this->alias => $data]);
+        
+        if ($result) {
+            if ($entity->getPrimary() === null) {
+                $entity->setPrimary($this->id);
+            }
+
+            if ($hasCreated && $property = $entity::getProperties()['created'] ?? null) {
+                if ($property->getType() instanceof \ReflectionNamedType && is_a($property->getType()->getName(), \DateTime::class, true) ) {
+                    $entity->created = $property->getType()->getName()::createFromFormat('Y-m-d H:i:s', $now);
+                }
+            }
+
+            if ($hasModified && $property = $entity::getProperties()['modified'] ?? null) {
+                if ($property->getType() instanceof \ReflectionNamedType && is_a($property->getType()->getName(), \DateTime::class, true) ) {
+                    $entity->modified = $property->getType()->getName()::createFromFormat('Y-m-d H:i:s', $now);
+                }
+            }
+
+            $this->entities[$entity->getPrimary()] = $entity; // todo??
+        }
+
+        return (bool) $result;
+    }
+
+
+
+    /**
+     * @param array $paginateParams
+     * @param array $conditions
+     * @return array $paginate
+     */
+    public function paginateIds(array $paginateParams, array $conditions): array
+    {
+        $paginateParams['conditions'] = $conditions; // todo?
+        $paginateParams['fields'] = ["$this->alias.$this->primaryKey"];
+
+        if (isset($paginateParams['contains'])) {
+            $joins = $this->getJoins($paginateParams['contains'], $this);
+        } else {
+            return $paginateParams;
+        }
+        unset($paginateParams['contains']);
+
+        $models = array_keys($joins);
+        $joins = array_intersect_key($joins, array_flip($this->findModelsInConditions($models, $conditions)));
+        $finalJoins = [];
+        foreach ($joins as $join) {
+            $finalJoins = array_merge($join, $finalJoins);
+        }
+        $paginateParams['joins'] = array_values($finalJoins);
+        $paginateParams['group'] = ["$this->alias.$this->primaryKey"];
+
+        return $paginateParams;
+    }
+
+
+    private function getDefaults(): array
+    {
+        if (isset($this->defaults)) {
+            return $this->defaults;
+        }
+        $this->defaults = [];
+        foreach ($this->schema() as $column => $schema) {
+            if ($schema['default'] === null && ! $schema['null']) {
+                continue;
+            }
+            if (in_array($column, ['created', 'modified', 'created_by', 'modified_by'], true)) {
+                continue;
+            }
+            $this->defaults[$column] = $schema['default'];
+        }
+        return $this->defaults;
+    }
+
+
+    /**
+     * @param E[] $entities
      * @param ?array $contains
      */
     private function addReferencedEntities(array $entities, ?array $contains): void
@@ -66,15 +276,17 @@ trait EntityAppModel
         }
         $containedModels = array_keys($contains);
 
+        /** @var class-string<E> $entityClass */
+        $entityClass = $this->getEntityClass();
         /** @var \ReflectionProperty $property */
-        foreach (($this->getEntityClass())::getPropertiesOfReferencedEntities() as $keyPropertyName => $property) {
+        foreach ($entityClass::getPropertiesOfReferencedEntities() as $keyPropertyName => $property) {
             $referencedEntityClass = $property->getType()->getName();
             $modelClass = $referencedEntityClass::getModelClass();
             if ( ! in_array($modelClass, $containedModels, true)) {
                 continue;
             }
             $Model = $this->getModel($modelClass);
-            if ( ! in_array(EntityAppModel::class, Reflection::getUsedTraits(static::class))) {
+            if ( ! in_array(EntityAppModel::class, Reflection::getUsedTraits(get_class($Model)))) {
                 throw new \InvalidArgumentException("Model '$modelClass' included in \$contains parameter is not instance of EntityAppModel.");
             }
 
@@ -90,6 +302,8 @@ trait EntityAppModel
                     $refIds[] = $refId;
                 }
             }
+
+            $refIds = $this->filterIds($refIds);
 
             $refContains = null;
             if ($params = is_array($contains[$modelClass]) ? $contains[$modelClass] : []) {
@@ -110,8 +324,9 @@ trait EntityAppModel
         }
     }
 
+
     /**
-     * @param CakeEntity[] $entities
+     * @param E[] $entities
      * @param ?array $contains
      */
     private function addRelatedEntities(array $entities, ?array $contains): void
@@ -125,14 +340,16 @@ trait EntityAppModel
         }
         $containedModels = array_keys($contains);
 
+        /** @var class-string<E> $entityClass */
+        $entityClass = $this->getEntityClass();
         /** @var Relation $relation */
-        foreach (($this->getEntityClass())::getPropertiesOfRelatedEntities() as $propertyName => $relation) {
+        foreach ($entityClass::getPropertiesOfRelatedEntities() as $propertyName => $relation) {
             $modelClass = $relation->relatedEntityClass::getModelClass();
             if ( ! in_array($modelClass, $containedModels, true)) {
                 continue;
             }
             $Model = $this->getModel($modelClass);
-            if ( ! in_array(EntityAppModel::class, Reflection::getUsedTraits(static::class))) {
+            if ( ! in_array(EntityAppModel::class, Reflection::getUsedTraits(get_class($Model)))) {
                 throw new \InvalidArgumentException("Model '$modelClass' included in \$contains parameter is not instance of EntityAppModel.");
             }
 
@@ -141,6 +358,8 @@ trait EntityAppModel
                 $entity->{$propertyName} = [];
                 $ids[] = $entity->getPrimary();
             }
+
+            $ids = $this->filterIds($ids);
 
             $relatedContains = null;
             if ($params = is_array($contains[$modelClass]) ? $contains[$modelClass] : []) {
@@ -157,7 +376,7 @@ trait EntityAppModel
                 : [];
 
             $relatedProperty = Strings::fromSnakeCaseToCamelCase($relation->column);
-            /** @var T $relatedEntity */
+            /** @var E $relatedEntity */
             foreach ($relatedEntities as $relatedEntity) {
                 $entities[$relatedEntity->{$relatedProperty}]->{$propertyName}[$relatedEntity->getPrimary()] = $relatedEntity;
             }
@@ -180,34 +399,71 @@ trait EntityAppModel
 
 
     /**
-     * @param $id
-     * @param bool $useCache
-     * @return ?T
+     * Profiltruje pole aby v něm byly jen int a string max 1x
+     * @param array $ids
+     * @return string[]|int[]
      */
-    public function getEntity($id, bool $useCache = true)
+    protected function filterIds(array $ids): array
     {
-        if ($id === null) {
-            return null;
-        }
-
-        if ($useCache && isset($this->entities[$id])) {
-            return $this->entities[$id];
-        }
-
-        return $this->findEntity(['conditions' => [$this->primaryKey => $id]]);
+        return array_values(array_unique(array_filter($ids, fn($value) => is_int($value) || is_string($value))));
     }
 
-    public function getEntityClass(): string
+
+    private function findModelsInConditions(array &$models, array $conditions): array
     {
-        $classWithoutNamespace = static::class;
-		// todo podle názvu db
-		$subNamespace = ucfirst(Strings::fromSnakeCaseToCamelCase($this->useDbConfig));
-        return "\\Cesys\\CakeEntities\\Entities\\$subNamespace\\$classWithoutNamespace";
+        $found = [];
+        foreach ($conditions as $key => $value) {
+            if (is_array($value)) {
+                foreach ($models as $modelKey => $model) {
+                    if (strpos($key, $model) !== false) {
+                        $found[] = $model;
+                        unset($models[$modelKey]);
+                    }
+                }
+                $found = array_merge($found, $this->findModelsInConditions($models, $value));
+            } else {
+                foreach ($models as $modelKey => $model) {
+                    if (strpos($key . $value, $model) !== false) {
+                        $found[] = $model;
+                        unset($models[$modelKey]);
+                    }
+                }
+            }
+        }
+        return $found;
     }
 
-    public static function getDefaultContains(): array
+    private function getJoins(array $contains, \AppModel $model): array
     {
-        return [];
+        $joins = [];
+        foreach ($contains as $childModelName => $childSettings) {
+            $childModel = $this->getModel($childModelName);
+            $childAlias = $childModel->alias;
+            $join = [
+                'table' => $childModel->useTable,
+                'alias' => $childModel->alias,
+            ];
+            if (isset($childSettings['foreignKey'])) {
+                $on = "$childAlias.{$childSettings['foreignKey']} = $model->alias.$model->primaryKey";
+                $join['conditions'] = [$on];
+            } elseif (isset($childSettings['key'])) {
+                $on = "$childAlias.$childModel->primaryKey = $model->alias.{$childSettings['key']}";
+                $join['conditions'] = [$on];
+            } else {
+                continue;
+            }
+            $join['type'] = 'LEFT';
+
+            $joins[$childModelName][$on] = $join;
+            if (isset($childSettings['contains'])) {
+                $childOns = $this->getJoins($childSettings['contains'], $childModel);
+                foreach ($childOns as &$childOn) {
+                    $childOn = array_merge($joins[$childModelName], $childOn);
+                }
+                $joins = array_merge($joins, $childOns);
+            }
+        }
+        return $joins;
     }
 
 }
