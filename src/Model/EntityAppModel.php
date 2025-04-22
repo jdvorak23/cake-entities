@@ -12,6 +12,12 @@ use Cesys\Utils\Strings;
  */
 trait EntityAppModel
 {
+	static array $SERVER_DEFAULT_SUB_NAMESPACE = [
+		's_server2' => 'server',
+		't_server2' => 'server',
+		'u_server2' => 'server',
+	];
+
     protected array $entities = [];
 
     private array $defaults;
@@ -38,7 +44,7 @@ trait EntityAppModel
         }
         $classWithoutNamespace = static::class;
         $database = \ConnectionManager::getInstance()->config->{$this->useDbConfig}['database'];
-        $database = static::SERVER_DEFAULT_SUB_NAMESPACE[$database] ?? $database;
+        $database = static::$SERVER_DEFAULT_SUB_NAMESPACE[$database] ?? $database;
         $subNamespace = ucfirst(Strings::fromSnakeCaseToCamelCase($database));
         return $this->entityClass = "\\Cesys\\CakeEntities\\Entities\\$subNamespace\\$classWithoutNamespace";
     }
