@@ -4,6 +4,7 @@ namespace Cesys\CakeEntities\Model;
 
 use Cesys\CakeEntities\Entities\CakeEntity;
 use Cesys\CakeEntities\Entities\Relation;
+use Cesys\Utils\Arrays;
 use Cesys\Utils\Reflection;
 use Cesys\Utils\Strings;
 
@@ -95,8 +96,11 @@ trait EntityAppModel
             $entities[$entity->getPrimary()] = $entity;
             $this->entities[$entity->getPrimary()] = $entity;
         }
-        $this->addReferencedEntities($entities, $contains);
-        $this->addRelatedEntities($entities, $contains);
+
+        $allEntities = $entities;
+        $this->addReferencedEntities($allEntities, $contains, $params);
+        // todo children
+        $this->addRelatedEntities($allEntities, $contains);
 
         return $entities;
     }
@@ -107,7 +111,7 @@ trait EntityAppModel
      * @param bool $useCache
      * @return E[]
      */
-    public function getEntities($ids, bool $useCache = true): array
+    public function getEntities($ids, ?array $contains = null, bool $useCache = true): array
     {
         $ids = $this->filterIds($ids);
         if ( ! $ids) {
@@ -125,7 +129,7 @@ trait EntityAppModel
         }
 
         if ($fetchIds) {
-            $this->findEntities(['conditions' => [$this->primaryKey => $fetchIds]]);
+            $this->findEntities(['conditions' => [$this->primaryKey => $fetchIds]], $contains);
         }
 
         $result = [];
@@ -265,7 +269,7 @@ trait EntityAppModel
      * @param E[] $entities
      * @param ?array $contains
      */
-    private function addReferencedEntities(array $entities, ?array $contains): void
+    private function addReferencedEntities(array &$entities, ?array $contains, array $params): void
     {
         if ( ! $entities) {
             return;
@@ -278,11 +282,80 @@ trait EntityAppModel
 
         /** @var class-string<E> $entityClass */
         $entityClass = $this->getEntityClass();
+
+        // První foreach najde všechny reference (aka parent_id) do vlastní tabulky, vytvoří entity těch co ještě nejsou a přidá je do $entities
         /** @var \ReflectionProperty $property */
         foreach ($entityClass::getPropertiesOfReferencedEntities() as $keyPropertyName => $property) {
             $referencedEntityClass = $property->getType()->getName();
             $modelClass = $referencedEntityClass::getModelClass();
-            if ( ! in_array($modelClass, $containedModels, true)) {
+            // Musí být v contains a zde řešíme jenom rekurzi do vlastní tabulky
+            if ( ! in_array($modelClass, $containedModels, true) || $modelClass !== static::class) {
+                continue;
+            }
+            $refIds = [];
+            $fetchedIds = [];
+            foreach ($entities as $entity) {
+                $refIds[] = $entity->{$keyPropertyName} ?? null;
+                $fetchedIds[] = $entity->getPrimary();
+            }
+            $refIds = $this->filterIds($refIds);
+            $fetchedIds = $this->filterIds($fetchedIds);
+            $refIds = array_diff($refIds, $fetchedIds);
+
+            if ($refIds) {
+                $refIdsList = implode(',', $refIds);
+                $parentsIds = $this->query("
+                        WITH RECURSIVE ascendants AS (
+                            SELECT id, parent_id
+                            FROM $this->useTable
+                            WHERE id IN ($refIdsList)
+                        
+                            UNION ALL
+                        
+                            SELECT t.id, t.parent_id
+                            FROM $this->useTable t
+                            INNER JOIN ascendants ON t.id = ascendants.parent_id
+                        )
+                        SELECT id
+                        FROM ascendants
+                    ");
+                $refIds = $this->filterIds(Arrays::flatten($parentsIds));
+                $refIds = array_diff($refIds, $fetchedIds);
+            }
+            if ($refIds) {
+                $params['conditions'] = ["$this->primaryKey" => $refIds];
+                $entities += $this->findEntities($params, []);
+            }
+        }
+
+        // Druhý foreach přiřadí všechny reference do vlastní tabulky
+        /** @var \ReflectionProperty $property */
+        foreach ($entityClass::getPropertiesOfReferencedEntities() as $keyPropertyName => $property) {
+            $referencedEntityClass = $property->getType()->getName();
+            $modelClass = $referencedEntityClass::getModelClass();
+            // Musí být v contains a zde řešíme jenom rekurzi do vlastní tabulky
+            if ( ! in_array($modelClass, $containedModels, true) || $modelClass !== static::class) {
+                continue;
+            }
+            foreach ($entities as $entity) {
+                if (isset($entity->{$keyPropertyName})) {
+                    if (isset($entities[$entity->{$keyPropertyName}])) {
+                        $property->setValue($entity, $entities[$entity->{$keyPropertyName}]);
+                        continue;
+                    }
+                }
+                if ($property->getType()->allowsNull()) {
+                    $property->setValue($entity, null);
+                }
+            }
+        }
+        // Třetí foreach přiřadí všechny ostatní reference
+        /** @var \ReflectionProperty $property */
+        foreach ($entityClass::getPropertiesOfReferencedEntities() as $keyPropertyName => $property) {
+            $referencedEntityClass = $property->getType()->getName();
+            $modelClass = $referencedEntityClass::getModelClass();
+            // Musí být v contains a řešíme vše MIMO rekurzi do vlastní  tabulky
+            if ( ! in_array($modelClass, $containedModels, true) || $modelClass === static::class) {
                 continue;
             }
             $Model = $this->getModel($modelClass);
@@ -456,11 +529,11 @@ trait EntityAppModel
 
             $joins[$childModelName][$on] = $join;
             if (isset($childSettings['contains'])) {
-                $childOns = $this->getJoins($childSettings['contains'], $childModel);
-                foreach ($childOns as &$childOn) {
-                    $childOn = array_merge($joins[$childModelName], $childOn);
+                $childJoins = $this->getJoins($childSettings['contains'], $childModel);
+                foreach ($childJoins as &$childJoin) {
+                    $childJoin = array_merge($joins[$childModelName], $childJoin);
                 }
-                $joins = array_merge($joins, $childOns);
+                $joins = array_merge($joins, $childJoins);
             }
         }
         return $joins;

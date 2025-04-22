@@ -9,7 +9,9 @@ class TemplatePattern extends CakeEntity
 {
     public int $id;
 
-    public int $templatePropertyId;
+    public ?int $templatePropertyId;
+
+    public ?int $parentId;
 
     public string $pattern;
 
@@ -22,6 +24,8 @@ class TemplatePattern extends CakeEntity
     public ?DateTime $modified;
 
     public TemplateProperty $templateProperty;
+
+    public TemplatePattern $parent;
 
     public function getReplaceFrom(): array
     {
