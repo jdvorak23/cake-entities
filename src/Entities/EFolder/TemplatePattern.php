@@ -11,50 +11,16 @@ class TemplatePattern extends CakeEntity
 
     public ?int $templatePropertyId;
 
-    public ?int $parentId;
+    public ?int $patternId;
 
-    public string $pattern;
-
-    public ?string $replaceFrom;
-    public ?string $replaceTo;
-
-    public ?string $dateFormat;
+    public string $name;
 
     public ?DateTime $created;
+
     public ?DateTime $modified;
 
     public TemplateProperty $templateProperty;
 
-    public TemplatePattern $parent;
+	public Pattern $pattern;
 
-    public function getReplaceFrom(): array
-    {
-        return $this->replaceFrom ? (unserialize($this->replaceFrom) ?: []) : [];
-    }
-
-    public function getReplaceTo(): array
-    {
-        return $this->replaceTo ? (unserialize($this->replaceTo) ?: []) : [];
-    }
-
-    public function convertAndSetValue(string $value): void
-    {
-        if ($this->getReplaceFrom()) {
-            $value = str_replace($this->getReplaceFrom(), $this->getReplaceTo(), $value);
-        }
-        if (isset($this->dateFormat)) {
-            $date = DateTime::createFromFormat($this->dateFormat, $value);
-            if ($date) {
-                if (strpos($this->dateFormat, '!') === 0) {
-                    $this->value = $date->format('Y-m-d');
-                } else {
-                    $this->value = $date->format('Y-m-d H:i:s');
-                }
-            } else {
-                $this->value = null;
-            }
-            return;
-        }
-        $this->value = $value;
-    }
 }

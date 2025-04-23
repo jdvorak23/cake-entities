@@ -13,6 +13,8 @@ class InputTemplateProperty extends CakeEntity
 
     public int $templatePatternId;
 
+	public ?int $parentId;
+
     /**
      * Pokud je v databázi určená, hledá se shoda
      * Pokud naopak není, hledá se patternem a bude (po úpravě) doplněna
@@ -25,6 +27,8 @@ class InputTemplateProperty extends CakeEntity
 
     public TemplatePattern $templatePattern;
 
+	public ?InputTemplateProperty $parent;
+
     public function getName(): string
     {
         return $this->templatePattern->templateProperty->name;
@@ -32,22 +36,6 @@ class InputTemplateProperty extends CakeEntity
 
     public function convertAndSetValue(string $value): void
     {
-        if ($this->templatePattern->getReplaceFrom()) {
-            $value = str_replace($this->templatePattern->getReplaceFrom(), $this->templatePattern->getReplaceTo(), $value);
-        }
-        if (isset($this->templatePattern->dateFormat)) {
-            $date = DateTime::createFromFormat($this->templatePattern->dateFormat, $value);
-            if ($date) {
-                if (strpos($this->templatePattern->dateFormat, '!') === 0) {
-                    $this->value = $date->format('Y-m-d');
-                } else {
-                    $this->value = $date->format('Y-m-d H:i:s');
-                }
-            } else {
-                $this->value = null;
-            }
-            return;
-        }
-        $this->value = $value;
+        $this->value = $this->templatePattern->convertValue($value);
     }
 }
