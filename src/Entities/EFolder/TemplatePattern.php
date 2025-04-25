@@ -9,9 +9,17 @@ class TemplatePattern extends CakeEntity
 {
     public int $id;
 
-    public ?int $templatePropertyId;
+	public ?int $parentId;
 
-    public ?int $patternId;
+	public string $description;
+
+	public string $pattern;
+
+	public ?string $replaceFrom;
+
+	public ?string $replaceTo;
+
+	public ?string $dateFormat;
 
     public string $name;
 
@@ -19,8 +27,43 @@ class TemplatePattern extends CakeEntity
 
     public ?DateTime $modified;
 
-    public TemplateProperty $templateProperty;
+	public ?TemplatePattern $parent;
 
-	public Pattern $pattern;
+	public function getReplaceFrom(): array
+	{
+		return $this->replaceFrom ? (unserialize($this->replaceFrom) ?: []) : [];
+	}
+
+	public function getReplaceTo(): array
+	{
+		return $this->replaceTo ? (unserialize($this->replaceTo) ?: []) : [];
+	}
+
+	/**
+	 * @param ?string $value
+	 * @return ?string
+	 */
+	public function convertValue(?string $value): ?string
+	{
+		if ($value === null) {
+			return null;
+		}
+		if ($this->getReplaceFrom()) {
+			$value = str_replace($this->getReplaceFrom(), $this->getReplaceTo(), $value);
+		}
+		if (isset($this->dateFormat)) {
+			$date = \DateTime::createFromFormat($this->dateFormat, $value);
+			if ($date) {
+				if (strpos($this->dateFormat, '!') === 0) {
+					return $date->format('Y-m-d');
+				} else {
+					return $date->format('Y-m-d H:i:s');
+				}
+			}
+			return null;
+		}
+
+		return trim($value);
+	}
 
 }

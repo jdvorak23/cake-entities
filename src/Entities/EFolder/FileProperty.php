@@ -25,7 +25,7 @@ class FileProperty extends CakeEntity
 	 */
 	public function getValue()
 	{
-		if ($this->templateProperty->type === 'array') {
+		if ($this->value && $this->templateProperty->type === 'array') {
 			return unserialize($this->value);
 		}
 		return $this->value;

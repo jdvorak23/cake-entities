@@ -11,6 +11,8 @@ class InputTemplateProperty extends CakeEntity
 
     public int $inputTemplateId;
 
+	public int $templatePropertyId;
+
     public int $templatePatternId;
 
 	public ?int $parentId;
@@ -23,7 +25,10 @@ class InputTemplateProperty extends CakeEntity
     public ?string $value;
 
     public ?DateTime $created;
+
     public ?DateTime $modified;
+
+	public TemplateProperty $templateProperty;
 
     public TemplatePattern $templatePattern;
 
@@ -31,7 +36,7 @@ class InputTemplateProperty extends CakeEntity
 
     public function getName(): string
     {
-        return $this->templatePattern->templateProperty->name;
+        return $this->templateProperty->name;
     }
 
     public function convertAndSetValue(string $value): void

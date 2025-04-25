@@ -9,26 +9,31 @@ class InputTemplate extends CakeEntity
 {
     public int $id;
 
+	public ?int $parentId;
+
     public string $company;
 
     public string $type;
 
     public string $invoiceType;
+
     public ?DateTime $created;
+
     public ?DateTime $modified;
+
+	public ?InputTemplate $parent;
 
     /**
      * @var InputTemplateProperty[] input_template_id
      */
     public array $properties;
 
-    public function getProperty(string $propertyName): ?InputTemplateProperty
+    public function getInputTemplateProperties(): array
     {
-        foreach ($this->properties as $property) {
-            if ($property->getName() === $propertyName) {
-                return $property;
-            }
-        }
-        return null;
+		$result = $this->properties;
+		if (isset($this->parent)) {
+			$result = $this->properties + $this->parent->getInputTemplateProperties();
+		}
+        return $result;
     }
 }
