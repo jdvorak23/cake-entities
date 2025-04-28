@@ -9,15 +9,13 @@ class TemplatePattern extends CakeEntity
 {
     public int $id;
 
-	public ?int $parentId;
-
 	public string $description;
 
 	public string $pattern;
 
-	public ?string $replaceFrom;
+	public ?string $replacePatterns;
 
-	public ?string $replaceTo;
+	public ?string $replacements;
 
 	public ?string $dateFormat;
 
@@ -27,16 +25,14 @@ class TemplatePattern extends CakeEntity
 
     public ?DateTime $modified;
 
-	public ?TemplatePattern $parent;
-
-	public function getReplaceFrom(): array
+	public function getReplacePatterns(): array
 	{
-		return $this->replaceFrom ? (unserialize($this->replaceFrom) ?: []) : [];
+		return $this->replacePatterns ? (unserialize($this->replacePatterns) ?: []) : [];
 	}
 
-	public function getReplaceTo(): array
+	public function getReplacements(): array
 	{
-		return $this->replaceTo ? (unserialize($this->replaceTo) ?: []) : [];
+		return $this->replacements ? (unserialize($this->replacements) ?: []) : [];
 	}
 
 	/**
@@ -48,8 +44,8 @@ class TemplatePattern extends CakeEntity
 		if ($value === null) {
 			return null;
 		}
-		if ($this->getReplaceFrom()) {
-			$value = str_replace($this->getReplaceFrom(), $this->getReplaceTo(), $value);
+		if ($this->getReplacePatterns()) {
+			$value = \preg_replace($this->getReplacePatterns(), $this->getReplacements(), $value);
 		}
 		if (isset($this->dateFormat)) {
 			$date = \DateTime::createFromFormat($this->dateFormat, $value);
@@ -62,7 +58,9 @@ class TemplatePattern extends CakeEntity
 			}
 			return null;
 		}
-
+		if ($value === null) {
+			return null;
+		}
 		return trim($value);
 	}
 
