@@ -12,6 +12,10 @@ class TemplateProperty extends CakeEntity
 
 	public string $type;
 
+    public bool $array;
+
+    public bool $required;
+
     public ?DateTime $created;
 
     public ?DateTime $modified;
