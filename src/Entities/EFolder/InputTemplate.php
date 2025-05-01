@@ -36,4 +36,22 @@ class InputTemplate extends CakeEntity
 		}
         return $result;
     }
+
+	/**
+	 * @param string $text
+	 * @param bool $interruptOnError
+	 * @return bool true -> všechny property byly setnuté, false -> bylo interupnuto
+	 */
+	public function setPropertiesFrom(string $text, bool $interruptOnError = false): bool
+	{
+		foreach ($this->getInputTemplateProperties() as $inputTemplateProperty) {
+			if ( ! $inputTemplateProperty->hasSearchedValue()) {
+				$inputTemplateProperty->setValueFrom($text);
+				if ($inputTemplateProperty->hasErrors() && $interruptOnError) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
 }

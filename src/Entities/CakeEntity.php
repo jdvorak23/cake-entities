@@ -80,7 +80,11 @@ abstract class CakeEntity
             if ($type) {
                 $typeName = $type->getName();
                 if (is_a($typeName, \DateTime::class, true) && is_string($value)) {
-                    $entity->{$propertyName} = $typeName::createFromFormat('Y-m-d H:i:s', $value);
+					if (strpos($value, ' ') === false) {
+						$entity->{$propertyName} = $typeName::createFromFormat('!Y-m-d', $value);
+					} else {
+						$entity->{$propertyName} = $typeName::createFromFormat('Y-m-d H:i:s', $value);
+					}
                     continue;
                 }
             }

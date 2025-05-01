@@ -9,7 +9,8 @@ class Folder extends CakeEntity
 {
     public int $id;
 
-    public string $name;
+	public string $number;
+    public string $clientName;
 
     public ?DateTime $created;
     public ?DateTime $modified;
@@ -18,6 +19,16 @@ class Folder extends CakeEntity
      * @var File[] folder_id
      */
     public array $files;
+
+	/**
+	 * @var FolderReservation[] folder_id
+	 */
+	public array $folderReservations;
+
+	/**
+	 * @var ProcessNumber[] folder_id
+	 */
+	public array $processNumbers;
 
 
 	public static function getModelClass(): string

@@ -91,7 +91,19 @@ trait EntityAppModel
     public function findEntities(array $params = [], ?array $contains = null): array
     {
         $params['recursive'] = -1;
-        if (isset($params['fields']) && is_array($params['fields']) && ! in_array($this->primaryKey, $params['fields'], true)) {
+		if ( ! isset($params['fields']) || ! $params['fields']) {
+			// Pokud nejsou fieldy v params, bereme ty, co má entita definované
+			$params['fields'] = [];
+			/** @var class-string<E> $entityClass */
+			$entityClass = $this->getEntityClass();
+			foreach(array_keys($entityClass::getProperties()) as $propertyName) {
+				$columnName = Strings::fromCamelCaseToSnakeCase($propertyName);
+				if ($this->schema($columnName)) {
+					$params['fields'][] = $columnName;
+				}
+			}
+		}
+        if (is_array($params['fields']) && ! in_array($this->primaryKey, $params['fields'], true)) {
             $params['fields'][] = $this->primaryKey;
         }
         $entitiesData = $this->find('all', $params);
