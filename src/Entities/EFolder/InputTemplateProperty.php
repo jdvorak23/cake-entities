@@ -36,9 +36,7 @@ class InputTemplateProperty extends CakeEntity
 
 	protected bool $hasSearchedValue = false;
 
-	protected array $searchErrors = [];
-
-	protected bool $hasErrors = false;
+	protected bool $hasError = false;
 
     public function getName(): string
     {
@@ -55,10 +53,7 @@ class InputTemplateProperty extends CakeEntity
 	 */
 	public function getValue()
 	{
-		if ($this->value && $this->templateProperty->type === 'array') {
-			return unserialize($this->value);
-		}
-		return $this->value;
+		return $this->templateProperty->convertValue($this->value);
 	}
 
 	/**
@@ -81,17 +76,17 @@ class InputTemplateProperty extends CakeEntity
 		$this->hasSearchedValue = true;
 	}
 
-	public function hasErrors(): bool
+	public function hasError(): bool
 	{
-		if ($this->hasErrors) {
+		if ($this->hasError) {
 			return true;
 		}
-		$hasErrors = false;
+		$hasError = false;
 		if ($this->parent) {
-			$hasErrors = $this->parent->hasErrors();
+			$hasError = $this->parent->hasError();
 		}
 
-		return $hasErrors;
+		return $hasError;
 	}
 
 	/**
@@ -126,15 +121,15 @@ class InputTemplateProperty extends CakeEntity
 
 		if ( ! $values) {
 			if ($this->templateProperty->required) {
-				$this->hasErrors = true;
+				$this->hasError = true;
 			}
 			return null;
 		}
 
-		if ($this->templateProperty->array) {
+		if ($this->templateProperty->isArray) {
 			return $values;
 		} elseif (count($values) > 1) {
-			$this->hasErrors = true;
+			$this->hasError = true;
 			/*bdump($values);
 			bdump($this->templatePattern);
 			throw new \Exception('Too many matches.');*/
@@ -145,7 +140,7 @@ class InputTemplateProperty extends CakeEntity
 		$value = $this->value === null ? $values[0] : ($values[0] === $this->value ? $values[0] : null);
 
 		if ($value === null && $this->templateProperty->required) {
-			$this->hasErrors = true;
+			$this->hasError = true;
 		}
 
 		return $value;

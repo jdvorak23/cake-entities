@@ -69,17 +69,10 @@ trait EntityAppModel
      * @param bool $useCache
      * @return ?E
      */
-    public function getEntity($id, bool $useCache = true)
+    public function getEntity($id, ?array $contains = null, bool $useCache = true)
     {
-        if ( ! $id = current($this->filterIds([$id]))) {
-            return null;
-        }
-
-        if ($useCache && isset($this->entities[$id])) {
-            return $this->entities[$id];
-        }
-
-        return $this->findEntity(['conditions' => [$this->primaryKey => $id]]);
+        $entities = $this->getEntities([$id], $contains, $useCache);
+        return $entities ? current($entities) : null;
     }
 
 

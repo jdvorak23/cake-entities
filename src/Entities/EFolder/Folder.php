@@ -35,4 +35,13 @@ class Folder extends CakeEntity
 	{
 		return 'EfFolder';
 	}
+
+	public function getProcessNumbersList(): array
+	{
+		$list = [];
+		foreach ($this->processNumbers as $processNumber) {
+			$list[$processNumber->id] = $processNumber->processNumber;
+		}
+		return $list;
+	}
 }

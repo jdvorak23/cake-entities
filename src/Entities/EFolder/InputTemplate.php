@@ -47,11 +47,23 @@ class InputTemplate extends CakeEntity
 		foreach ($this->getInputTemplateProperties() as $inputTemplateProperty) {
 			if ( ! $inputTemplateProperty->hasSearchedValue()) {
 				$inputTemplateProperty->setValueFrom($text);
-				if ($inputTemplateProperty->hasErrors() && $interruptOnError) {
+				if ($inputTemplateProperty->hasError() && $interruptOnError) {
 					return false;
 				}
 			}
 		}
 		return true;
+	}
+
+
+	public function getErrorsCount(): int
+	{
+		$errorsCount = 0;
+		foreach ($this->getInputTemplateProperties() as $inputTemplateProperty) {
+			if ($inputTemplateProperty->hasError()) {
+				$errorsCount++;
+			}
+		}
+		return $errorsCount;
 	}
 }
