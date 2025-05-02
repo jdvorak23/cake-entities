@@ -66,6 +66,7 @@ trait EntityAppModel
 
     /**
      * @param $id
+     * @param array|null $contains
      * @param bool $useCache
      * @return ?E
      */
@@ -118,11 +119,12 @@ trait EntityAppModel
 
 
     /**
-     * @param $ids
+     * @param array $ids
+     * @param array|null $contains
      * @param bool $useCache
      * @return E[]
      */
-    public function getEntities($ids, ?array $contains = null, bool $useCache = true): array
+    public function getEntities(array $ids, ?array $contains = null, bool $useCache = true): array
     {
         $ids = $this->filterIds($ids);
         if ( ! $ids) {
@@ -174,7 +176,7 @@ trait EntityAppModel
      * @param E $entity
      * @return bool
      */
-    public function saveEntity(CakeEntity $entity, array $appendData = []): bool
+    public function saveEntity(CakeEntity $entity, array $appendData = [], bool $validate = true, array $fieldList = []): bool
     {
         $data = $entity->toDbArray();
         $now = date('Y-m-d H:i:s');
@@ -198,9 +200,7 @@ trait EntityAppModel
             }
         }
 
-        $data = array_merge($data, $appendData);
-
-        $result = $this->save([$this->alias => $data]);
+        $result = $this->save([$this->alias => array_merge($data, $appendData)], $validate, $fieldList);
         
         if ($result) {
             if ($entity->getPrimary() === null) {
@@ -219,7 +219,7 @@ trait EntityAppModel
                 }
             }
 
-            $this->entities[$entity->getPrimary()] = $entity; // todo??
+            $this->entities[$entity->getPrimary()] = $entity;
         }
 
         return (bool) $result;
