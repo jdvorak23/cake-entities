@@ -103,6 +103,7 @@ abstract class CakeEntity
         $result = [];
         $rc = Reflection::getReflectionClass(static::class);
         foreach ($rc->getProperties() as $property) {
+            // todo is static?
             if ($property->isPrivate() || $property->isProtected() || in_array($property->getName(), static::getExcludedFromProperties(), true)) {
                 continue;
             }
