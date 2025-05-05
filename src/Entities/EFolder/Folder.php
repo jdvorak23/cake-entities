@@ -15,6 +15,9 @@ class Folder extends CakeEntity
     public ?DateTime $created;
     public ?DateTime $modified;
 
+    public ?int $createdBy;
+    public ?int $modifiedBy;
+
     /**
      * @var File[] folder_id
      */

@@ -174,7 +174,7 @@ abstract class CakeEntity
 
     public static function getExcludedFromDbArray(): array
     {
-        return ['created', 'modified', 'created_by', 'modified_by'];
+        return ['created', 'modified', 'createdBy', 'modifiedBy'];
     }
 
     public static function getExcludedFromProperties(): array

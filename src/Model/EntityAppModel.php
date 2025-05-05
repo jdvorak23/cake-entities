@@ -19,23 +19,41 @@ trait EntityAppModel
 		'u_server2' => 'server',
 	];
 
+    public array $contains = [];
+
+    /**
+     * Cache fetchnutých / uložených entit
+     * @var array
+     */
     protected array $entities = [];
 
+    /**
+     * Pro zapamatování, kterého id se uložené Model::__exists vztahuje
+     * @var mixed
+     */
+    protected $existsId;
+
+    /**
+     * Zde je uloženo to, co vrátilo poslední volání save()
+     * @var array|bool
+     */
+    protected $lastSaveResult;
+
+    /**
+     * Uložené default hodnoty všech sloupců tabulky, které mají default
+     * @var array
+     */
     private array $defaults;
 
+    /**
+     * Třída entity odpovídající modelu
+     * @var string
+     */
     private string $entityClass;
 
-    /**
-     * todo popis
-     * @return array
-     */
-    public static function getDefaultContains(): array
-    {
-        return [];
-    }
-
 
     /**
+     * Přepsat si tam, kde to je jinak
      * @return class-string<E>
      */
     public function getEntityClass(): string
@@ -44,6 +62,7 @@ trait EntityAppModel
             return $this->entityClass;
         }
         $classWithoutNamespace = static::class;
+        // todo mozna zase static, nebo zavislost na usedbconfig
         $database = \ConnectionManager::getInstance()->config->{$this->useDbConfig}['database'];
         $database = static::$SERVER_DEFAULT_SUB_NAMESPACE[$database] ?? $database;
         $subNamespace = ucfirst(Strings::fromSnakeCaseToCamelCase($database));
@@ -174,48 +193,36 @@ trait EntityAppModel
 
     /**
      * @param E $entity
+     * @param array $appendData
+     * @param bool $validate
+     * @param array $fieldList
      * @return bool
      */
-    public function saveEntity(CakeEntity $entity, array $appendData = [], bool $validate = true, array $fieldList = []): bool
+    public function saveEntity(CakeEntity $entity, bool $validate = true, array $fieldList = [], array $appendData = []): bool
     {
+        // todo overeni class
         $data = $entity->toDbArray();
-        $now = date('Y-m-d H:i:s');
-
-        $hasCreated = false;
         if ($entity->getPrimary() === null) {
-            if ($created = $this->schema('created')) {
-                if ($created['type'] === 'datetime') {
-                    $data['created'] = $now;
-                    $hasCreated = true;
-                }
-            }
-            $this->create();
+            $this->id = false;
         }
-
-        $hasModified = false;
-        if ($modified = $this->schema('modified')) {
-            if ($modified['type'] === 'datetime') {
-                $data['modified'] = $now;
-                $hasModified = true;
-            }
-        }
-
         $result = $this->save([$this->alias => array_merge($data, $appendData)], $validate, $fieldList);
         
         if ($result) {
+            // Pokud nebylo id, přiřadí se
             if ($entity->getPrimary() === null) {
                 $entity->setPrimary($this->id);
             }
 
-            if ($hasCreated && $property = $entity::getProperties()['created'] ?? null) {
+            // Todo mozna priradit i zbytek co se vratilo, ale zatím není jistý, pokud chceme defaulty, meli bychom entitu spravne vytvaret
+
+            if (isset($result[$this->alias]['created']) && $property = $entity::getProperties()['created'] ?? null) {
                 if ($property->getType() instanceof \ReflectionNamedType && is_a($property->getType()->getName(), \DateTime::class, true) ) {
-                    $entity->created = $property->getType()->getName()::createFromFormat('Y-m-d H:i:s', $now);
+                    $entity->created = $property->getType()->getName()::createFromFormat('Y-m-d H:i:s', $result[$this->alias]['created']);
                 }
             }
-
-            if ($hasModified && $property = $entity::getProperties()['modified'] ?? null) {
+            if (isset($result[$this->alias]['modified'])  && $property = $entity::getProperties()['modified'] ?? null) {
                 if ($property->getType() instanceof \ReflectionNamedType && is_a($property->getType()->getName(), \DateTime::class, true) ) {
-                    $entity->modified = $property->getType()->getName()::createFromFormat('Y-m-d H:i:s', $now);
+                    $entity->modified = $property->getType()->getName()::createFromFormat('Y-m-d H:i:s', $result[$this->alias]['modified']);
                 }
             }
 
@@ -225,6 +232,68 @@ trait EntityAppModel
         return (bool) $result;
     }
 
+
+    public function save($data = null, $validate = true, $fieldList = array())
+    {
+        $this->set($data); // Stejně to je přiřazeno v parent::save(), tím se doplní do $this->data i s alias, pokud nebyl
+        // Navíc zde již finálně víme id -> pokud bylo v $data, přepsalo / nastavilo hodnotu v $this->id, nebo se bere dříve nastavená, nebo není
+
+        // Vyřeší omylem ponechané klíče v $data, tyto nemá smysl posílat do save, protože se mají generovat automaticky
+        unset($this->data[$this->alias]['created']);
+        unset($this->data[$this->alias]['modified']);
+        if (empty($this->data[$this->alias])) {
+            // Teoreticky jsme tím mohli odebrat všechny klíče z pole s klíčem '$this->alias', takže ten musíme odebrat, Cake si s tím neporadí
+            unset($this->data[$this->alias]);
+        }
+
+        // Chyba v logice Model::save() -> pokud v $this->data->id něco bylo, a volal se Model::exists(), a následně se $this->id = null,
+        // nebo $this->id = $jinyId, stále v interním záznamu zůstává původní hodnota exists. Volání Model::create() to sice vyresetuje,
+        // ale to zase vytváří nechtěné defaulty do $this->data
+        if (isset($this->__exists, $this->existsId)) {
+            $existsId = is_int($this->existsId) ? (string) $this->existsId : $this->existsId;
+            $id = is_int($this->id) ? (string) $this->id : $this->id;
+            if ($existsId !== $id) {
+                $this->__exists = null;
+            }
+        }
+
+        // Vložíme vyfiltrovaná data, ne původní
+        $return = parent::save($this->data, $validate, $fieldList);
+        if (is_array($return) && $this->id) {
+            // Pokud je úspěšný save, doplníme hodnotu primárního klíče, u CREATE se chybně nedoplňuje
+            $return[$this->alias][$this->primaryKey] = $this->id;
+        }
+        return $this->lastSaveResult = $return;
+    }
+
+
+    /**
+     * Přepisuje původní metodu, pouze navíc uloží do $this->existsId idčko záznamu, pro který se existence vlastně zjišťovala + oprava empty
+     * To se použije na správné dovyresetování $this->__exists v přepsaném save()
+     * @param $reset
+     * @return bool
+     */
+    function exists($reset = false)
+    {
+        if (is_array($reset)) {
+            extract($reset, EXTR_OVERWRITE);
+        }
+        $id = $this->getID();
+        if ($id === false || $this->useTable === false) {
+            return false;
+        }
+        if ($this->__exists !== null && $reset !== true) { // PREPSANO
+            return $this->__exists;
+        }
+        $conditions = array($this->alias . '.' . $this->primaryKey => $id);
+        $query = array('conditions' => $conditions, 'recursive' => -1, 'callbacks' => false);
+
+        if (is_array($reset)) {
+            $query = array_merge($query, $reset);
+        }
+        $this->existsId = $id;
+        return $this->__exists = ($this->find('count', $query) > 0);
+    }
 
 
     /**
@@ -470,8 +539,8 @@ trait EntityAppModel
     private function getContains(?array $contains): array
     {
         $normalizedContains = [];
-        foreach ($contains ?? static::getDefaultContains() as $key => $value) {
-            if (is_array($value)) {
+        foreach ($contains ?? $this->contains as $key => $value) {
+            if (is_array($value) || $value === null) {
                 $normalizedContains[$key] = $value;
             } elseif (is_string($value)) {
                 $normalizedContains[$value] = null;
