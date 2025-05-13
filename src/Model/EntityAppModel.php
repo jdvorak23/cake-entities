@@ -203,7 +203,7 @@ trait EntityAppModel
         // todo overeni class
         $data = $entity->toDbArray();
         if ($entity->getPrimary() === null) {
-            $this->id = false;
+            $this->id = false; // todo create?
         }
         $result = $this->save([$this->alias => array_merge($data, $appendData)], $validate, $fieldList);
         

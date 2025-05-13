@@ -3,19 +3,41 @@
 namespace Cesys\CakeEntities\Entities\Amadeus\EFolder;
 
 use Cesys\CakeEntities\Entities\CakeEntity;
+use Cesys\CakeEntities\Entities\EFolder\Invoice;
+use Cesys\CakeEntities\Entities\EFolder\ProcessNumber;
 
 class Reservation extends CakeEntity
 {
 	public int $id;
+
+	public int $travelAgencyId;
+
+	public ?int $customerId;
+
+	public ?int $efProcessNumberId;
+
 	public ?int $number;
+
+	public ?string $processNumber;
+
+	public string $reservationType;
+
+	public ?int $commissionPercent;
+
 	public string $firstname;
 
 	public string $surname;
 
+
 	/**
-	 * @var ReservationDate[] reservation_id
+	 * @var Contract[] reservation_id
 	 */
-	public array $reservationDates;
+	public array $contracts;
+
+	/**
+	 * @var Invoice[] reservation_id
+	 */
+	public array $invoices;
 
 	public static function getModelClass(): string
 	{
@@ -27,10 +49,18 @@ class Reservation extends CakeEntity
 		return trim($this->firstname . ' ' . $this->surname);
 	}
 
-	public function getDate(): ?ReservationDate
+	public function getContract(): ?Contract
 	{
-		if ($this->reservationDates) {
-			return current($this->reservationDates);
+		if ($this->contracts) {
+			return current($this->contracts);
+		}
+		return null;
+	}
+
+	public function getInvoice(): ?Invoice
+	{
+		if ($this->invoices) {
+			return current($this->invoices);
 		}
 		return null;
 	}

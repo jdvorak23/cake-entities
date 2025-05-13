@@ -13,9 +13,7 @@ class InputTemplate extends CakeEntity
 
     public string $company;
 
-    public string $type;
-
-    public string $invoiceType;
+    public ?string $className;
 
     public ?DateTime $created;
 

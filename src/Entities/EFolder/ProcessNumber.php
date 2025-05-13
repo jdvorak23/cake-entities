@@ -2,6 +2,7 @@
 
 namespace Cesys\CakeEntities\Entities\EFolder;
 
+use Cesys\CakeEntities\Entities\Amadeus\EFolder\Reservation;
 use Cesys\CakeEntities\Entities\CakeEntity;
 
 /**
@@ -13,5 +14,10 @@ class ProcessNumber extends CakeEntity
 
 	public int $folderId;
 
-	public string $processNumber;
+	public string $number;
+
+	/**
+	 * @var Reservation[] ef_process_number_id
+	 */
+	public array $reservations;
 }

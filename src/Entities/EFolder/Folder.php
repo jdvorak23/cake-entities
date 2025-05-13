@@ -2,6 +2,7 @@
 
 namespace Cesys\CakeEntities\Entities\EFolder;
 
+use Cesys\CakeEntities\Entities\Amadeus\EFolder\Reservation;
 use Cesys\CakeEntities\Entities\CakeEntity;
 use Nette\Utils\DateTime;
 
@@ -24,11 +25,6 @@ class Folder extends CakeEntity
     public array $files;
 
 	/**
-	 * @var FolderReservation[] folder_id
-	 */
-	public array $folderReservations;
-
-	/**
 	 * @var ProcessNumber[] folder_id
 	 */
 	public array $processNumbers;
@@ -43,8 +39,28 @@ class Folder extends CakeEntity
 	{
 		$list = [];
 		foreach ($this->processNumbers as $processNumber) {
-			$list[$processNumber->id] = $processNumber->processNumber;
+			$list[$processNumber->id] = $processNumber->number;
 		}
 		return $list;
+	}
+
+	/**
+	 * @return Reservation[]
+	 */
+	public function getReservations(): array
+	{
+		$reservations = [];
+		foreach ($this->processNumbers as $processNumber) {
+			$reservations += $processNumber->reservations;
+		}
+		return $reservations;
+	}
+	public function getReservationsCount(): int
+	{
+		$count = 0;
+		foreach ($this->processNumbers as $processNumber) {
+			$count += count($processNumber->reservations);
+		}
+		return $count;
 	}
 }
