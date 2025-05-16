@@ -7,6 +7,12 @@ use Nette\Utils\DateTime;
 
 class FInvoiceItem extends CakeEntity
 {
+	/**
+	 * Typy f_items (fItemId)
+	 */
+	const TypeCommission = 1;
+	const TypeService = 2;
+	const TypeDeposit = 30;
 
 	public int $id;
 	

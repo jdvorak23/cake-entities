@@ -17,13 +17,21 @@ class ExchangeRate extends CakeEntity
 
 	public int $count;
 
-	public function convertFrom(float $amountInForeignCurrency): float
+	public function convertFrom(float $amountInForeignCurrency, ?int $decimals): float
 	{
-		return $this->rate * $this->count * $amountInForeignCurrency;
+		$amount = $this->rate / $this->count * $amountInForeignCurrency;
+		if ($decimals === null) {
+			return $amount;
+		}
+		return round($amount, $decimals);
 	}
 
-	public function convertTo(float $amountInRefCurrency): float
+	public function convertTo(float $amountInRefCurrency, ?int $decimals): float
 	{
-		return $amountInRefCurrency / ($this->rate * $this->count);
+		$amount = $amountInRefCurrency * $this->count / $this->rate;
+		if ($decimals === null) {
+			return $amount;
+		}
+		return round($amount, $decimals);
 	}
 }

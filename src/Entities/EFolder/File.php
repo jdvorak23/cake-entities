@@ -35,6 +35,13 @@ class File extends CakeEntity
 	 */
 	public array $fileProperties;
 
+	public ?InputTemplate $inputTemplate;
+
+	/**
+	 * @var Invoice[] file_id
+	 */
+	public array $invoices;
+
     public string $path;
 
 	public static function getModelClass(): string
@@ -68,4 +75,13 @@ class File extends CakeEntity
         }
         return Filesystem::joinPaths($this->path, $this->folderId, $this->getFullFilename());
     }
+
+	public function getInvoice(): ?Invoice
+	{
+		if ($this->invoices) {
+			return current($this->invoices);
+		}
+
+		return null;
+	}
 }

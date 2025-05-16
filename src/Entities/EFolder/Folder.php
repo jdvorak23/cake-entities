@@ -4,6 +4,7 @@ namespace Cesys\CakeEntities\Entities\EFolder;
 
 use Cesys\CakeEntities\Entities\Amadeus\EFolder\Reservation;
 use Cesys\CakeEntities\Entities\CakeEntity;
+use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FInvoice;
 use Nette\Utils\DateTime;
 
 class Folder extends CakeEntity
@@ -55,12 +56,31 @@ class Folder extends CakeEntity
 		}
 		return $reservations;
 	}
-	public function getReservationsCount(): int
+
+	/**
+	 * @return Invoice[]
+	 */
+	public function getInvoices(): array
 	{
-		$count = 0;
-		foreach ($this->processNumbers as $processNumber) {
-			$count += count($processNumber->reservations);
+		$invoices = [];
+		foreach ($this->getReservations() as $reservation) {
+			$invoices += $reservation->invoices;
 		}
-		return $count;
+		foreach ($this->files as $file) {
+			$invoices += $file->invoices;
+		}
+		return $invoices;
+	}
+
+	/**
+	 * @return FInvoice[]
+	 */
+	public function getFInvoices(): array
+	{
+		$fInvoices = [];
+		foreach ($this->getInvoices() as $invoice) {
+			$fInvoices[$invoice->fInvoiceId] = $invoice->fInvoice;
+		}
+		return $fInvoices;
 	}
 }

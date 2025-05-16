@@ -15,6 +15,10 @@ class InputTemplate extends CakeEntity
 
     public ?string $className;
 
+	public ?int $fSubjectId; // todo podmínka do výběru templat na parsování
+
+	public bool $active;
+
     public ?DateTime $created;
 
     public ?DateTime $modified;

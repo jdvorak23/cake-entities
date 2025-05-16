@@ -7,7 +7,6 @@ use Nette\Utils\DateTime;
 
 class FInvoice extends CakeEntity
 {
-
 	public int $id;
 
 	public int $fCurrencyId;
@@ -43,6 +42,10 @@ class FInvoice extends CakeEntity
 	 * 1 - FAKTURA - DAŇOVÝ DOKLAD
 	 * 2 - ZÁLOHOVÁ FAKTURA - NEDAŇOVÝ DOKLAD
 	 * 3 - DOBROPIS - DAŇOVÝ DOKLAD
+	 * A jen Delta:
+	 * 4 - Faktura F
+	 * 5 - Faktura U
+	 * 6 - Faktura E
 	 * @var int
 	 */
 	public int $fInvoiceTypeId;
@@ -164,13 +167,55 @@ class FInvoice extends CakeEntity
 
 
 	/**
-	 * @var FInvoiceItem[] f_item_id
+	 * @var FInvoiceItem[] f_invoice_id
 	 */
 	public array $fInvoiceItems;
+
+	public FCurrency $fCurrency;
+
+	public FSubject $fCustomer;
+
+	public FSubject $fSupplier;
+
+	public FSubjectBank $fSubjectBank;
+
+	public FInvoiceType $fInvoiceType;
 
 
 	public static function getModelClass(): string
 	{
 		return 'EfFInvoice';
+	}
+
+	public function getTotalDeposit()
+	{
+		$deposit = 0;
+		foreach ($this->fInvoiceItems as $item) {
+			if ($item->fItemId === FInvoiceItem::TypeDeposit) {
+				$deposit += $item->total;
+			}
+		}
+		return $deposit;
+	}
+
+	public function hasCommissionTypeItem(): bool
+	{
+		foreach ($this->fInvoiceItems as $item) {
+			if ($item->fItemId === FInvoiceItem::TypeCommission) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public function getZip(): string
+	{
+		$zip = preg_replace('/\s+/', '', $this->addressPostcode);
+		return trim($zip);
+	}
+
+	public function getFullInvoiceNumber(): string
+	{
+		return "{$this->fInvoiceType->prefix}$this->number";
 	}
 }
