@@ -58,10 +58,8 @@ class TemplatePattern extends CakeEntity
 			}
 			return null;
 		}
-		if ($value === null) {
-			return null;
-		}
-		return trim($value);
+
+		return $value === null ? null : trim($value);
 	}
 
 }

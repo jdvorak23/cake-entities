@@ -51,7 +51,7 @@ trait LazyModelTrait
 
     /**
      * Magický __get slouží k dynamickému vytváření instance modelu, který je definován jako property ve třídě
-     * Viz __construct()
+     * Viz lazyModelTraitConstructor()
      * Pokud to sem spadne a nejedná se o tuto funkcionalitu, bude simulováno přesné chování tak, jako by __get nebylo implementováno
      * @param string $name
      * @return null
