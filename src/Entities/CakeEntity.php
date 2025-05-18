@@ -10,9 +10,29 @@ require_once __DIR__ . '/Relation.php';
 abstract class CakeEntity
 {
     /**
+     * @var string[][]
+     */
+    protected static array $modelClasses = [];
+
+    /**
+     * @var array[]
+     */
+    protected static array $excludedFormDbArrays = [];
+    /**
      * @var \ReflectionProperty[][]
      */
     private static array $properties = [];
+
+    /**
+     * @var \ReflectionProperty[][]
+     */
+    private static array $propertiesOfReferencedEntities = [];
+
+    /**
+     * @var Relation[][]
+     */
+    private static array $propertiesOfRelatedEntities = [];
+
 
     /**
      * @return int|string|null
@@ -26,6 +46,11 @@ abstract class CakeEntity
         return $rp->getValue($this);
     }
 
+
+    /**
+     * @param int|string $value
+     * @return void
+     */
     public function setPrimary($value)
     {
         $rp = static::getProperties()[static::getPrimaryPropertyName()];
@@ -63,6 +88,7 @@ abstract class CakeEntity
         return $data;
     }
 
+
     /**
      * @param array $data
      * @return static
@@ -95,16 +121,69 @@ abstract class CakeEntity
         return $entity;
     }
 
+
+    /**
+     * @return string[]
+     */
+    public static function getExcludedFromDbArray(): array
+    {
+        return static::$excludedFormDbArrays[static::class] ??= ['created', 'modified', 'createdBy', 'modifiedBy'];
+    }
+
+
+    /**
+     * @param array $excludedFromDbArray
+     * @return string[] původní $excludedFromDbArray
+     */
+    public static function setExcludedFromDbArray(array $excludedFromDbArray): array
+    {
+        $originalExcludedFromDbArray = static::getExcludedFromDbArray();
+        static::$excludedFormDbArrays[static::class] = $excludedFromDbArray;
+        return $originalExcludedFromDbArray;
+    }
+
+
+    /**
+     * @return string
+     */
+    public static function getModelClass(): string
+    {
+        return static::$modelClasses[static::class] ??= Reflection::getReflectionClass(static::class)->getShortName();
+    }
+
+
+    /**
+     * @param string $modelClass
+     * @return string původní $modelClass
+     */
+    public static function setModelClass(string $modelClass): string
+    {
+        $originalClass = static::getModelClass();
+        static::$modelClasses[static::class] = $modelClass;
+        return $originalClass;
+    }
+
+
+    public static function getExcludedFromProperties(): array
+    {
+        return [];
+    }
+
+
+    public static function getPrimaryPropertyName(): string
+    {
+        return 'id';
+    }
+
+
     public static function &getProperties(): array
     {
         if (isset(self::$properties[static::class])) {
             return self::$properties[static::class];
         }
         $result = [];
-        $rc = Reflection::getReflectionClass(static::class);
-        foreach ($rc->getProperties() as $property) {
-            // todo is static?
-            if ($property->isPrivate() || $property->isProtected() || in_array($property->getName(), static::getExcludedFromProperties(), true)) {
+        foreach (Reflection::getReflectionPropertiesOfClass(static::class) as $property) {
+            if ($property->isStatic() || $property->isPrivate() || $property->isProtected() || in_array($property->getName(), static::getExcludedFromProperties(), true)) {
                 continue;
             }
             if ($type = $property->getType()) {
@@ -122,8 +201,11 @@ abstract class CakeEntity
      *
      * @return \ReflectionProperty[]
      */
-    public static function getPropertiesOfReferencedEntities(): array
+    public static function &getPropertiesOfReferencedEntities(): array
     {
+        if (isset(self::$propertiesOfReferencedEntities[static::class])) {
+            return self::$propertiesOfReferencedEntities[static::class];
+        }
         $result = [];
         foreach (Reflection::getReflectionPropertiesOfClass(static::class) as $property) {
             if ($type = $property->getType()) {
@@ -135,17 +217,20 @@ abstract class CakeEntity
                 }
             }
         }
-        return $result;
+        self::$propertiesOfReferencedEntities[static::class] = $result;
+        return self::$propertiesOfReferencedEntities[static::class];
     }
 
     /**
      * @return Relation[]
      */
-    public static function getPropertiesOfRelatedEntities(): array
+    public static function &getPropertiesOfRelatedEntities(): array
     {
+        if (isset(self::$propertiesOfRelatedEntities[static::class])) {
+            return self::$propertiesOfRelatedEntities[static::class];
+        }
         $result = [];
-        $rc = Reflection::getReflectionClass(static::class);
-        foreach ($rc->getProperties() as $property) {
+        foreach (Reflection::getReflectionPropertiesOfClass(static::class) as $property) {
             if ( ! $type = $property->getType()) {
                 continue;
             }
@@ -154,7 +239,11 @@ abstract class CakeEntity
             }
 
             if ($annotation = Reflection::parseAnnotation($property, 'var')) {
-                [$annotationType, $column] = preg_split('/[\s\t]+/', trim($annotation), -1, PREG_SPLIT_NO_EMPTY);
+                $parsed = preg_split('/[\s\t]+/', trim($annotation), -1, PREG_SPLIT_NO_EMPTY);
+                if (count($parsed) < 2) {
+                    continue;
+                }
+                [$annotationType, $column] = $parsed;
                 if ( ! $annotationType || ! $column) {
                     continue;
                 }
@@ -162,34 +251,14 @@ abstract class CakeEntity
                 if ( ! $simpleType) {
                     continue;
                 }
-                $relatedEntityClass = Reflection::expandClassName($simpleType, $rc);
+                $relatedEntityClass = Reflection::expandClassName($simpleType, Reflection::getReflectionClass(static::class));
                 if ( ! is_a($relatedEntityClass, self::class, true)) {
                     continue;
                 }
                 $result[$property->getName()] = new Relation($property, $column, $relatedEntityClass);
             }
         }
-        return $result;
+        self::$propertiesOfRelatedEntities[static::class] = $result;
+        return self::$propertiesOfRelatedEntities[static::class];
     }
-
-    public static function getExcludedFromDbArray(): array
-    {
-        return ['created', 'modified', 'createdBy', 'modifiedBy'];
-    }
-
-    public static function getExcludedFromProperties(): array
-    {
-        return [];
-    }
-
-    public static function getPrimaryPropertyName(): string
-    {
-        return 'id';
-    }
-
-    public static function getModelClass(): string
-    {
-        return Reflection::getReflectionClass(static::class)->getShortName();
-    }
-
 }

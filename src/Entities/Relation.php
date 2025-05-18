@@ -6,6 +6,9 @@ class Relation
 {
     public \ReflectionProperty $property;
     public string $column;
+    /**
+     * @var class-string<CakeEntity>
+     */
     public string $relatedEntityClass;
 
     public function __construct(
