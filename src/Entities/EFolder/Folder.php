@@ -2,7 +2,7 @@
 
 namespace Cesys\CakeEntities\Entities\EFolder;
 
-use Cesys\CakeEntities\Entities\Amadeus\EFolder\Reservation;
+use Cesys\CakeEntities\Entities\AmadeusServer\EFolder\Reservation;
 use Cesys\CakeEntities\Entities\CakeEntity;
 use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FInvoice;
 use Nette\Utils\DateTime;
@@ -33,7 +33,7 @@ class Folder extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return 'EfFolder';
+		return static::$modelClasses[static::class] ??= 'EfFolder';
 	}
 
 	public function getProcessNumbersList(): array

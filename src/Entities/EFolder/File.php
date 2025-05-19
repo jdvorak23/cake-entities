@@ -42,11 +42,13 @@ class File extends CakeEntity
 	 */
 	public array $invoices;
 
+	public Folder $folder;
+
     public string $path;
 
 	public static function getModelClass(): string
 	{
-		return 'EfFile';
+		return static::$modelClasses[static::class] ??= 'EfFile';
 	}
 
     public static function getExcludedFromProperties(): array
@@ -76,12 +78,4 @@ class File extends CakeEntity
         return Filesystem::joinPaths($this->path, $this->folderId, $this->getFullFilename());
     }
 
-	public function getInvoice(): ?Invoice
-	{
-		if ($this->invoices) {
-			return current($this->invoices);
-		}
-
-		return null;
-	}
 }

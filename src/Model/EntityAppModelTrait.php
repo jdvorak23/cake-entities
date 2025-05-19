@@ -13,7 +13,7 @@ use Cesys\Utils\Strings;
  * Pokud v use tříde je definován konstruktor, je v něm potřeba volat $this->lazyModelTraitConstructor();
  * @template E of CakeEntity
  */
-trait EntityAppModel // todo přejmenovat na trait a celý na trait
+trait EntityAppModelTrait
 {
     /**
      * Potřebujeme, aby save probíhal řádně
@@ -32,7 +32,7 @@ trait EntityAppModel // todo přejmenovat na trait a celý na trait
 		'u_server2' => 'server',
 	];
 
-    public array $contains = []; // todo protected
+    protected array $contains = [];
 
     /**
      * Třída entity odpovídající modelu
@@ -152,6 +152,12 @@ trait EntityAppModel // todo přejmenovat na trait a celý na trait
     {
         $this->temporaryContains = $contains;
     }
+
+
+	public function clearCache(): void
+	{
+		$this->entities = [];
+	}
 
 
     /**
@@ -291,7 +297,6 @@ trait EntityAppModel // todo přejmenovat na trait a celý na trait
                 $entities = $this->findCache;
             }
         }
-
         // Nalezení entit ve vlastní tabulce (přes nějaké parent_id)
         $entities = $this->addSameEntities($entities, $contains, $params['fields'], $useCache);
         // Připojení entit z ostatních tabulek
@@ -674,7 +679,7 @@ trait EntityAppModel // todo přejmenovat na trait a celý na trait
             }
 
             $Model = $this->getModel($modelClass);
-            if ( ! in_array(EntityAppModel::class, Reflection::getUsedTraits(get_class($Model)))) {
+            if ( ! in_array(EntityAppModelTrait::class, Reflection::getUsedTraits(get_class($Model)))) {
                 throw new \InvalidArgumentException("Model '$modelClass' included in \$contains parameter is not instance of EntityAppModel.");
             }
 
@@ -682,15 +687,23 @@ trait EntityAppModel // todo přejmenovat na trait a celý na trait
                 if ($property->isInitialized($entity)) {
                     continue;
                 }
-
                 if (isset($entity->{$keyPropertyName})) {
                     if (isset($this->modelConditions[$modelClass][$Model->primaryKey]) && in_array($entity->getPrimary(), $this->modelConditions[$modelClass][$Model->primaryKey], true)) {
-                        continue;
-                    }
-                    $modelsWithNewConditions[] = $modelClass;
-                    $this->modelConditions[$modelClass][$Model->primaryKey][] = $entity->{$keyPropertyName};
+                        //continue;
+                    } else {
+						$modelsWithNewConditions[] = $modelClass;
+						$this->modelConditions[$modelClass][$Model->primaryKey][] = $entity->{$keyPropertyName};
+					}
+
                     $callbacks[$modelClass][] = function ($entities) use ($property, $entity, $keyPropertyName) {
-                        $property->setValue($entity, $entities[$entity->{$keyPropertyName}]);
+						if ($property->isInitialized($entity)) {
+							return;
+						}
+						if (isset($entities[$entity->{$keyPropertyName}])) {
+							$property->setValue($entity, $entities[$entity->{$keyPropertyName}]);
+						}/* elseif ($property->getType()->allowsNull()) {
+							$property->setValue($entity, null);
+						}*/
                     };
                 } elseif ($property->getType()->allowsNull()) {
                     $property->setValue($entity, null);
@@ -708,7 +721,7 @@ trait EntityAppModel // todo přejmenovat na trait a celý na trait
             }
 
             $Model = $this->getModel($modelClass);
-            if ( ! in_array(EntityAppModel::class, Reflection::getUsedTraits(get_class($Model)))) {
+            if ( ! in_array(EntityAppModelTrait::class, Reflection::getUsedTraits(get_class($Model)))) {
                 throw new \InvalidArgumentException("Model '$modelClass' included in \$contains parameter is not instance of EntityAppModel.");
             }
 

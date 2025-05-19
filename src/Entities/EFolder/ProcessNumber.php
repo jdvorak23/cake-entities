@@ -2,7 +2,7 @@
 
 namespace Cesys\CakeEntities\Entities\EFolder;
 
-use Cesys\CakeEntities\Entities\Amadeus\EFolder\Reservation;
+use Cesys\CakeEntities\Entities\AmadeusServer\EFolder\Reservation;
 use Cesys\CakeEntities\Entities\CakeEntity;
 
 /**
@@ -20,4 +20,21 @@ class ProcessNumber extends CakeEntity
 	 * @var Reservation[] ef_process_number_id
 	 */
 	public array $reservations;
+
+	public function getLastDateTo(): ?\DateTime
+	{
+		$lastDate = null;
+		foreach ($this->reservations as $reservation) {
+			if ( ! $contract = $reservation->getContract()) {
+				continue;
+			}
+			if ( ! $contract->dateTo) {
+				continue;
+			}
+			if ( ! $lastDate || $contract->dateTo > $lastDate) {
+				$lastDate = $contract->dateTo;
+			}
+		}
+		return $lastDate;
+	}
 }

@@ -61,7 +61,7 @@ class FSubject extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return 'EfFSubject';
+		return static::$modelClasses[static::class] ??= 'EfFSubject';
 	}
 
 	public function getFSubjectAddress(): ?FSubjectAddress

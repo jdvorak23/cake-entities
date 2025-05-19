@@ -50,6 +50,6 @@ class FInvoiceItem extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return 'EfFInvoiceItem';
+		return static::$modelClasses[static::class] ??= 'EfFInvoiceItem';
 	}
 }

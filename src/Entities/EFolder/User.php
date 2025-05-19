@@ -11,4 +11,9 @@ class User extends CakeEntity
     public int $userId;
     public string $country;
     public ?int $superuserId;
+
+	public static function getModelClass(): string
+	{
+		return static::$modelClasses[static::class] ??= 'EfUser';
+	}
 }

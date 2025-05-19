@@ -18,7 +18,7 @@ class FCurrency extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return 'EfFCurrency';
+		return static::$modelClasses[static::class] ??= 'EfFCurrency';
 	}
 
 	public function round(float $amount): float

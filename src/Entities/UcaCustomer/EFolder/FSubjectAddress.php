@@ -44,7 +44,7 @@ class FSubjectAddress extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return 'EfFSubjectAddress';
+		return static::$modelClasses[static::class] ??= 'EfFSubjectAddress';
 	}
 
 	public function getZip(): string
