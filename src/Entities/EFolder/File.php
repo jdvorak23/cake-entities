@@ -46,6 +46,16 @@ class File extends CakeEntity
 
     public string $path;
 
+	/**
+	 * nechci závislost ach jko
+	 * @var callable
+	 *
+	protected $documentInvoiceFactory;
+	public function setDocumentInvoiceFactory(callable $documentInvoiceFactory)
+	{
+		$this->documentInvoiceFactory = $documentInvoiceFactory;
+	}*/
+
 	public static function getModelClass(): string
 	{
 		return static::$modelClasses[static::class] ??= 'EfFile';
@@ -55,6 +65,10 @@ class File extends CakeEntity
     {
         return ['path'];
     }
+
+
+
+
 
 
     public function getFullFilename(): string
@@ -77,5 +91,15 @@ class File extends CakeEntity
         }
         return Filesystem::joinPaths($this->path, $this->folderId, $this->getFullFilename());
     }
+
+	public function hasInvoiceOfType(int $fInvoiceTypeId): bool
+	{
+		foreach ($this->invoices as $invoice) {
+			if ($invoice->fInvoice->fInvoiceTypeId === $fInvoiceTypeId) {
+				return true;
+			}
+		}
+		return false;
+	}
 
 }

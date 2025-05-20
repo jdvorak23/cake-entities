@@ -3,10 +3,13 @@
 namespace Cesys\CakeEntities\Entities\UcaCustomer\EFolder;
 
 use Cesys\CakeEntities\Entities\CakeEntity;
+use Cesys\CakeEntities\Entities\EFolder\ExchangeRate;
 use Nette\Utils\DateTime;
 
 class FInvoice extends CakeEntity
 {
+	const DefaultCurrencyCode = 'CZK';
+
 	public int $id;
 
 	public int $fCurrencyId;
@@ -181,10 +184,50 @@ class FInvoice extends CakeEntity
 
 	public FInvoiceType $fInvoiceType;
 
+	/**
+	 * @var callable
+	 */
+	protected $exchangeRateCallback;
+
 
 	public static function getModelClass(): string
 	{
 		return static::$modelClasses[static::class] ??= 'EfFInvoice';
+	}
+
+	/**
+	 * @param callable $exchangeRateCallback
+	 * @return void
+	 */
+	public function setExchangeRateCallback(callable $exchangeRateCallback)
+	{
+		$this->exchangeRateCallback = $exchangeRateCallback;
+	}
+
+	public function getExchangeRate(): ExchangeRate
+	{
+		if ($this->fCurrency->code === static::DefaultCurrencyCode) {
+			$exchangeRate = new ExchangeRate();
+			$exchangeRate->date = $this->issued;
+			$exchangeRate->currency = $exchangeRate->refCurrency = static::DefaultCurrencyCode;
+			$exchangeRate->rate = 1;
+			$exchangeRate->count = 1;
+			return $exchangeRate;
+		}
+		// TODO toto je pouze pro testování, aby vůbec šlo vytvářet, musí se smazat!
+		$yesterday = new DateTime('today');
+		$yesterday->modify('-1 day');
+		if ( ! $this->issued || $this->issued > $yesterday) {
+			$date = $yesterday;
+		} else {
+			$date = $this->issued;
+		}
+		return ($this->exchangeRateCallback)($date, $this->fCurrency->code, static::DefaultCurrencyCode);
+	}
+
+	public function getTotalInDefaultCurrency(): float
+	{
+		return $this->getExchangeRate()->convertFrom($this->totalRound, $this->fCurrency->roundCount);
 	}
 
 	public function getTotalDeposit()

@@ -5,6 +5,7 @@ namespace Cesys\CakeEntities\Entities\EFolder;
 use Cesys\CakeEntities\Entities\AmadeusServer\EFolder\Reservation;
 use Cesys\CakeEntities\Entities\CakeEntity;
 use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FInvoice;
+use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FInvoiceType;
 use Nette\Utils\DateTime;
 
 class Folder extends CakeEntity
@@ -82,5 +83,34 @@ class Folder extends CakeEntity
 			$fInvoices[$invoice->fInvoiceId] = $invoice->fInvoice;
 		}
 		return $fInvoices;
+	}
+
+	public function getTotalIncome(): float
+	{
+		$total = 0;
+		foreach ($this->getFInvoices() as $fInvoice) {
+			if ($fInvoice->fInvoiceTypeId === FInvoiceType::E || $fInvoice->fInvoiceTypeId === FInvoiceType::F) {
+				continue;
+			}
+			$total += $fInvoice->getTotalInDefaultCurrency();
+		}
+		return $total;
+	}
+
+	public function getTotalExpenses()
+	{
+		$total = 0;
+		foreach ($this->getFInvoices() as $fInvoice) {
+			if ($fInvoice->fInvoiceTypeId !== FInvoiceType::F) {
+				continue;
+			}
+			$total += $fInvoice->getTotalInDefaultCurrency();
+		}
+		return $total;
+	}
+
+	public function getTotalInDefaultCurrency()
+	{
+		return $this->getTotalIncome() - $this->getTotalExpenses();
 	}
 }

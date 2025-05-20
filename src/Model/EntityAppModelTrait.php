@@ -298,19 +298,20 @@ trait EntityAppModelTrait
             }
         }
         // Nalezení entit ve vlastní tabulce (přes nějaké parent_id)
-        $entities = $this->addSameEntities($entities, $contains, $params['fields'], $useCache);
+        $allEntities = $this->addSameEntities($entities, $contains, $params['fields'], $useCache);
         // Připojení entit z ostatních tabulek
-        $this->addOtherEntities($entities, $contains, $useCache);
+        $this->addOtherEntities($allEntities, $contains, $useCache);
 
         if ($isFirstCall) {
             $this->temporaryContains = null;
         }
         if ($isOriginalCall) {
-            //bdump(self::$findPath);
+            bdump(self::$findPath);
             self::$findPath = [];
+			return $entities;
         }
 
-        return $entities;
+        return $allEntities;
     }
 
 
@@ -664,6 +665,7 @@ trait EntityAppModelTrait
         }
         $containedModels = array_keys($contains);
 
+
         /** @var class-string<E> $entityClass */
         $entityClass = $this->getEntityClass();
         $modelsWithNewConditions = [];
@@ -677,7 +679,6 @@ trait EntityAppModelTrait
                 // Musí být v contains a řešíme vše MIMO rekurzi do vlastní  tabulky
                 continue;
             }
-
             $Model = $this->getModel($modelClass);
             if ( ! in_array(EntityAppModelTrait::class, Reflection::getUsedTraits(get_class($Model)))) {
                 throw new \InvalidArgumentException("Model '$modelClass' included in \$contains parameter is not instance of EntityAppModel.");
@@ -688,7 +689,7 @@ trait EntityAppModelTrait
                     continue;
                 }
                 if (isset($entity->{$keyPropertyName})) {
-                    if (isset($this->modelConditions[$modelClass][$Model->primaryKey]) && in_array($entity->getPrimary(), $this->modelConditions[$modelClass][$Model->primaryKey], true)) {
+                    if (isset($this->modelConditions[$modelClass][$Model->primaryKey]) && in_array($entity->{$keyPropertyName}, $this->modelConditions[$modelClass][$Model->primaryKey], true)) {
                         //continue;
                     } else {
 						$modelsWithNewConditions[] = $modelClass;
@@ -696,6 +697,9 @@ trait EntityAppModelTrait
 					}
 
                     $callbacks[$modelClass][] = function ($entities) use ($property, $entity, $keyPropertyName) {
+						/*if (static::class === 'EfFInvoice' && $property->getName() === 'fCurrency') {
+							bdump($entities);
+						}*/
 						if ($property->isInitialized($entity)) {
 							return;
 						}
@@ -749,8 +753,15 @@ trait EntityAppModelTrait
                 };
             }
         }
-
-        foreach (array_unique($modelsWithNewConditions) as $modelClass) {
+		/*if (static::class === 'EfFInvoice') {
+			bdump($entities);
+			bdump($this->modelConditions);
+			bdump($callbacks['EfFCurrency']);
+			bdump(array_unique($modelsWithNewConditions));
+		}
+		bdump($this->modelConditions);*/
+		//foreach (array_unique($modelsWithNewConditions) as $modelClass) {
+        foreach (array_keys($this->modelConditions) as $modelClass) {
             $Model = $this->getModel($modelClass);
             $modelContains = null;
             if ($params = is_array($contains[$modelClass]) ? $contains[$modelClass] : []) {
