@@ -8,6 +8,9 @@ use Nette\Utils\DateTime;
 
 class FInvoice extends CakeEntity
 {
+	/**
+	 * Odsud se to tahá skoro všude -> toto je hlavní definice toho, že hlavní měna Ekonomu Delta je 'CZK'
+	 */
 	const DefaultCurrencyCode = 'CZK';
 
 	public int $id;
@@ -204,15 +207,10 @@ class FInvoice extends CakeEntity
 		$this->exchangeRateCallback = $exchangeRateCallback;
 	}
 
-	public function getExchangeRate(): ExchangeRate
+	public function getExchangeRate(): ?ExchangeRate
 	{
 		if ($this->fCurrency->code === static::DefaultCurrencyCode) {
-			$exchangeRate = new ExchangeRate();
-			$exchangeRate->date = $this->issued;
-			$exchangeRate->currency = $exchangeRate->refCurrency = static::DefaultCurrencyCode;
-			$exchangeRate->rate = 1;
-			$exchangeRate->count = 1;
-			return $exchangeRate;
+			return null;
 		}
 		// TODO toto je pouze pro testování, aby vůbec šlo vytvářet, musí se smazat!
 		$yesterday = new DateTime('today');
@@ -222,12 +220,16 @@ class FInvoice extends CakeEntity
 		} else {
 			$date = $this->issued;
 		}
+		// TODO vše mezi smazat!
 		return ($this->exchangeRateCallback)($date, $this->fCurrency->code, static::DefaultCurrencyCode);
 	}
 
 	public function getTotalInDefaultCurrency(): float
 	{
-		return $this->getExchangeRate()->convertFrom($this->totalRound, $this->fCurrency->roundCount);
+		if ($exchangeRate = $this->getExchangeRate()) {
+			return $exchangeRate->convertFrom($this->totalRound);
+		}
+		return $this->totalRound;
 	}
 
 	public function getTotalDeposit()

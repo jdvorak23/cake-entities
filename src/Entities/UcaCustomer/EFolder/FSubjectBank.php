@@ -28,6 +28,7 @@ class FSubjectBank extends CakeEntity
 	public $token;
 
 	public $active;
+
 	public static function getModelClass(): string
 	{
 		return static::$modelClasses[static::class] ??= 'EfFSubjectBank';
@@ -41,6 +42,7 @@ class FSubjectBank extends CakeEntity
 		$parts = explode('/', $this->account);
 		return $parts[0];
 	}
+
 	public function getBankCode(): ?string
 	{
 		if ( ! isset($this->account)) {

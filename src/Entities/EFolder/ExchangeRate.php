@@ -3,6 +3,7 @@
 namespace Cesys\CakeEntities\Entities\EFolder;
 
 use Cesys\CakeEntities\Entities\CakeEntity;
+use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FCurrency;
 use Nette\Utils\DateTime;
 
 class ExchangeRate extends CakeEntity
@@ -10,28 +11,43 @@ class ExchangeRate extends CakeEntity
 	public int $id;
 
 	public DateTime $date;
+
+	/**
+	 * 3-písmenný kód, toto je měna 'základní'
+	 * @var string
+	 */
 	public string $refCurrency;
 
+	/**
+	 * 3-písmenný kód, toto je měna 'cizí'
+	 * @var string
+	 */
 	public string $currency;
 	public float $rate;
 
 	public int $count;
 
-	public function convertFrom(float $amountInForeignCurrency, ?int $decimals): float
+	/**
+	 * Ručně se musí dodat
+	 * @var FCurrency
+	 */
+	public FCurrency $fRefCurrency;
+
+	/**
+	 * Ručně se musí dodat
+	 * @var FCurrency
+	 */
+	public FCurrency $fCurrency;
+
+	public function convertFrom(float $amountInForeignCurrency): float
 	{
 		$amount = $this->rate / $this->count * $amountInForeignCurrency;
-		if ($decimals === null) {
-			return $amount;
-		}
-		return round($amount, $decimals);
+		return round($amount, $this->fRefCurrency->roundCount);
 	}
 
-	public function convertTo(float $amountInRefCurrency, ?int $decimals): float
+	public function convertTo(float $amountInRefCurrency): float
 	{
 		$amount = $amountInRefCurrency * $this->count / $this->rate;
-		if ($decimals === null) {
-			return $amount;
-		}
-		return round($amount, $decimals);
+		return round($amount, $this->fCurrency->roundCount);
 	}
 }

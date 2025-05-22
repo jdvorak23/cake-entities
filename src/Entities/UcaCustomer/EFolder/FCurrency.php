@@ -10,6 +10,10 @@ class FCurrency extends CakeEntity
 	public ?string $name;
 	public ?string $unit;
 
+	/**
+	 * 3-písmenný kód
+	 * @var string|null
+	 */
 	public ?string $code;
 
 	public int $roundCount;

@@ -9,6 +9,20 @@ use Cesys\CakeEntities\Entities\EFolder\ProcessNumber;
 
 class Reservation extends CakeEntity
 {
+	/**
+	 * Typy enum $paymentCollection
+	 */
+	const PaymentCollectionSeller = 'seller';
+	const PaymentCollectionTO = 'tour_operator';
+
+	/**
+	 * Typy 'enum' $reservationType. Ve skutečnosti není enum, ale pracuje se s ním tak
+	 */
+	const ReservationTypeCustomDirectSell = 'customDirectSell';
+	const ReservationTypeCustomPartnerSell = 'customPartnerSell';
+	const ReservationTypeSystemDirectSell = 'systemDirectSell';
+	const ReservationTypeSystemPartnerSell = 'systemPartnerSell';
+
 	public int $id;
 
 	public int $travelAgencyId;
@@ -28,6 +42,12 @@ class Reservation extends CakeEntity
 	public string $firstname;
 
 	public string $surname;
+
+	/**
+	 * Viz constanty
+	 * @var string
+	 */
+	public string $paymentCollection;
 
 
 	/**
@@ -64,5 +84,11 @@ class Reservation extends CakeEntity
 			return current($this->invoices);
 		}
 		return null;
+	}
+
+	public function isPartnerSell(): bool
+	{
+		return $this->reservationType === self::ReservationTypeCustomPartnerSell
+			|| $this->reservationType === self::ReservationTypeSystemPartnerSell;
 	}
 }

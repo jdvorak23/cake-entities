@@ -47,6 +47,13 @@ class File extends CakeEntity
     public string $path;
 
 	/**
+	 * @var callable
+	 */
+	protected $parsedInvoiceFactory;
+
+	protected $parsedInvoice;
+
+	/**
 	 * nechci závislost ach jko
 	 * @var callable
 	 *
@@ -55,6 +62,19 @@ class File extends CakeEntity
 	{
 		$this->documentInvoiceFactory = $documentInvoiceFactory;
 	}*/
+
+	public function setParsedInvoiceFactory(callable $parsedInvoiceFactory)
+	{
+		$this->parsedInvoiceFactory = $parsedInvoiceFactory;
+	}
+
+	/**
+	 * @return ?\Cesys\EFolder\Documents\ParsedInvoice
+	 */
+	public function getParsedInvoice()
+	{
+		return $this->parsedInvoice ??= ($this->parsedInvoiceFactory)($this);
+	}
 
 	public static function getModelClass(): string
 	{

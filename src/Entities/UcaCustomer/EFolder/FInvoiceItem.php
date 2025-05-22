@@ -12,6 +12,8 @@ class FInvoiceItem extends CakeEntity
 	 */
 	const TypeCommission = 1;
 	const TypeService = 2;
+	const TypeFOfEInvoice = 10; // Položka typu F na faktuře E
+	const TypeUOfEInvoice = 11; // Položka typu U na faktuře E
 	const TypeDeposit = 30;
 
 	public int $id;
