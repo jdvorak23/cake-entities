@@ -2,6 +2,7 @@
 
 namespace Cesys\CakeEntities\Entities\EFolder;
 
+use Cesys\CakeEntities\Entities\AmadeusServer\EFolder\ContractService;
 use Cesys\CakeEntities\Entities\AmadeusServer\EFolder\Reservation;
 use Cesys\CakeEntities\Entities\CakeEntity;
 use Cesys\CakeEntities\Entities\EFolder\Custom\TransactionExpense;
@@ -150,6 +151,23 @@ class Folder extends CakeEntity
 		return $fInvoices;
 	}
 
+	/**
+	 * @return ContractService[]
+	 */
+	public function getServiceContractServices(): array
+	{
+		$contractServices = [];
+		foreach ($this->getReservations() as $reservation) {
+			foreach ($reservation->getContract()->contractServices as $contractService) {
+				if ($contractService->kind === ContractService::KindServicePrice && $contractService->price) {
+					$contractServices[$contractService->id] = $contractService;
+				}
+			}
+		}
+		return $contractServices;
+	}
+
+
 	public function getInvoicesTotalIncome(): float
 	{
 		$total = 0;
@@ -266,6 +284,7 @@ class Folder extends CakeEntity
 			if ( ! $processNumber = $this->getProcessNumbersByNumber()[$fileProcessNumber] ?? null) {
 				continue;
 			}
+			// Zde vratka provize při placení celé částky (i s provizí) na účet DELTA (SVK)
 			foreach ($processNumber->reservations as $reservation) {
 				if ($reservation->isPartnerSell() && $reservation->paymentCollection === Reservation::PaymentCollectionTO) {
 					$transactionExpense = new TransactionExpense();
@@ -285,6 +304,47 @@ class Folder extends CakeEntity
 				}
 			}
 		}
+
+		$today = new DateTime('today');
+		foreach ($this->getReservations() as $reservation) {
+			foreach ($reservation->getContract()->contractServices as $contractService) {
+				if ($contractService->kind === ContractService::KindServicePrice && $contractService->price) {
+					$transactionExpense = new TransactionExpense();
+					$transactionExpense->date = $reservation->created;
+					$transactionExpense->name = $contractService->name;
+					if ($contractService->originalCurrency) {
+						$transactionExpense->currency  = $contractService->originalCurrency;
+						$transactionExpense->amount = $contractService->originalPrice;
+					} else {
+						switch ($contractService->currency) { // todo sračka
+							case 'Kč':
+								$transactionExpense->currency = 'CZK';
+								break;
+							case 'Eur':
+								$transactionExpense->currency = 'EUR';
+								break;
+							case 'Ft':
+								$transactionExpense->currency = 'HUF';
+								break;
+						}
+						$transactionExpense->amount = $contractService->price;
+					}
+
+
+					if ($transactionExpense->currency !== FInvoice::DefaultCurrencyCode) {
+						$date = min($transactionExpense->date, new DateTime('yesterday'));
+						$exchangeRate = ($this->exchangeRateCallback)($date, $transactionExpense->currency, FInvoice::DefaultCurrencyCode);
+						$transactionExpense->amountInDefaultCurrency = $exchangeRate->convertFrom($transactionExpense->amount);
+					} else {
+						$transactionExpense->amountInDefaultCurrency = $transactionExpense->amount;
+					}
+
+					$transactionExpense->reservationId = $reservation->id;
+					$transactionExpenses[] = $transactionExpense;
+				}
+			}
+		}
+
 		return $this->transactionExpenses = $transactionExpenses;
 	}
 

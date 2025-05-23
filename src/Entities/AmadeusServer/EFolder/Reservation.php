@@ -6,6 +6,7 @@ use Cesys\CakeEntities\Entities\AmadeusServer\EFolder\Contract;
 use Cesys\CakeEntities\Entities\CakeEntity;
 use Cesys\CakeEntities\Entities\EFolder\Invoice;
 use Cesys\CakeEntities\Entities\EFolder\ProcessNumber;
+use Nette\Utils\DateTime;
 
 class Reservation extends CakeEntity
 {
@@ -49,6 +50,8 @@ class Reservation extends CakeEntity
 	 */
 	public string $paymentCollection;
 
+	public DateTime $created;
+
 
 	/**
 	 * @var Contract[] reservation_id
@@ -62,7 +65,7 @@ class Reservation extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return 'EfAmadeusReservation';
+		return static::$modelClasses[static::class] ??= 'EfAmadeusReservation';
 	}
 
 	public function getClientName(): string

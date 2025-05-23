@@ -55,6 +55,11 @@ class Contract extends CakeEntity
 	public ?string $processNumber;
 
 	/**
+	 * @var ContractService[] contract_id
+	 */
+	public array $contractServices;
+
+	/**
 	 * Musí se ručně doplnit, vytváří PriceHelper::getAmadeusPaymenSchedule()
 	 * @var array
 	 */
@@ -63,7 +68,7 @@ class Contract extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return 'EfAmadeusContract';
+		return static::$modelClasses[static::class] ??= 'EfAmadeusContract';
 	}
 
 	public function getTravelAgencyInumber(): string
