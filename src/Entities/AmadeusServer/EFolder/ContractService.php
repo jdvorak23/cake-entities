@@ -45,12 +45,21 @@ class ContractService extends CakeEntity
 	 */
 	public ?float $price;
 
-	public $currency;
+	/**
+	 * Zde není kód dle ISO 4217, ale 'jednotka', tj. např. 'Kč', 'Eur', 'Ft'
+	 * Je nullable, ale null nemá smysl a v db není
+	 * @var ?string
+	 */
+	public ?string $currency;
 
-	public $exchangeRate;
+	public ?float $exchangeRate;
 
 	public ?float $originalPrice;
 
+	/**
+	 * Toto je klasický kód dle ISO 4217, tj. 'CZK', 'EUR', ...
+	 * @var string|null
+	 */
 	public ?string $originalCurrency;
 
 	public $discount;

@@ -13,6 +13,8 @@ class Contract extends CakeEntity
 
 	public ?string $travelAgencyInumber;
 
+	public ?string $travelAgencyName;
+
 	public ?string $clientStreet;
 
 	public ?string $clientHouseNumber;

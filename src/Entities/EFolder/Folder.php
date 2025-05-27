@@ -42,6 +42,11 @@ class Folder extends CakeEntity
 	 */
 	public array $fBankTransactions;
 
+	/**
+	 * @var MoneyTransaction[] folder_id
+	 */
+	public array $moneyTransactions;
+
 	protected array $transactionExpenses;
 
 	/**
@@ -197,41 +202,33 @@ class Folder extends CakeEntity
 		return $this->getInvoicesTotalIncome() - $this->getInvoicesTotalExpenses();
 	}
 
+//-------------------------------------------------------
 
 	/**
-	 * @return FBankTransaction[]
+	 * @return MoneyTransaction[]
 	 */
-	public function getFBankTransactions(): array
+	public function getTransactionsIncome(): array
 	{
-		return Arrays::flatten($this->fBankTransactions, true);
+		$transactions = [];
+		foreach ($this->moneyTransactions as $transaction) {
+			if ($transaction->isIncome) {
+				$transactions[$transaction->id] = $transaction;
+			}
+		}
+		return $transactions;
 	}
 
 	public function getTransactionsIncomeCount(): int
 	{
-		return count(Arrays::flatten($this->fBankTransactions));
-	}
-
-	public function getTransactionsExpensesCount(): int
-	{
 		$count = 0;
-		foreach ($this->files as $file) {
-			if ( ! $file->getParsedInvoice()) {
-				continue;
-			}
-			$count++;
-			$fileProcessNumber = $file->getParsedInvoice()->processNumber;
-
-			if ( ! $processNumber = $this->getProcessNumbersByNumber()[$fileProcessNumber] ?? null) {
-				continue;
-			}
-			foreach ($processNumber->reservations as $reservation) {
-				if ($reservation->isPartnerSell() && $reservation->paymentCollection === Reservation::PaymentCollectionTO) {
-					$count++;
-				}
+		foreach ($this->moneyTransactions as $transaction) {
+			if ($transaction->isIncome) {
+				$count++;
 			}
 		}
 		return $count;
 	}
+
 
 	/**
 	 * @return float[]
@@ -239,11 +236,14 @@ class Folder extends CakeEntity
 	public function getTransactionsIncomeTotals(): array
 	{
 		$totals = [];
-		foreach ($this->getFBankTransactions() as $fBankTransaction) {
-			if ( ! isset($totals[$fBankTransaction->currency])) {
-				$totals[$fBankTransaction->currency] = 0;
+		foreach ($this->moneyTransactions as $transaction) {
+			if ( ! $transaction->isIncome) {
+				continue;
 			}
-			$totals[$fBankTransaction->currency] += $fBankTransaction->value;
+			if ( ! isset($totals[$transaction->fCurrencyId])) {
+				$totals[$transaction->fCurrencyId] = 0;
+			}
+			$totals[$transaction->fCurrencyId] += $transaction->amount;
 		}
 		return $totals;
 	}
@@ -251,101 +251,40 @@ class Folder extends CakeEntity
 	public function getTransactionsIncomeTotal(): float
 	{
 		$total = 0;
-		foreach ($this->getFBankTransactions() as $fBankTransaction) {
-			$total += $fBankTransaction->getAmountInDefaultCurrency();
+		foreach ($this->moneyTransactions as $transaction) {
+			if ( ! $transaction->isIncome) {
+				continue;
+			}
+			$total += $transaction->getAmountInDefaultCurrency();
 		}
 		return $total;
 	}
 
+
+
 	/**
-	 * @return TransactionExpense[]
+	 * @return MoneyTransaction[]
 	 */
-	public function getTransactionExpenses(): array
+	public function getTransactionsExpenses(): array
 	{
-		if (isset($this->transactionExpenses)) {
-			return $this->transactionExpenses;
-		}
-		$transactionExpenses = [];
-		foreach ($this->files as $file) {
-			if ( ! $file->getParsedInvoice()) {
-				continue;
-			}
-
-			$transactionExpense = new TransactionExpense();
-			$transactionExpense->date = $file->getParsedInvoice()->dueDate;
-			$transactionExpense->name = $file->getFullFilename();
-			$transactionExpense->currency = $file->getParsedInvoice()->currency;
-			$transactionExpense->amount = $file->getParsedInvoice()->getTotalPayment();
-			$transactionExpense->amountInDefaultCurrency = $file->getParsedInvoice()->getTotalPaymentInDefaultCurrency();
-			$transactionExpense->fileId = $file->id;
-			$transactionExpenses[] = $transactionExpense;
-
-			$fileProcessNumber = $file->getParsedInvoice()->processNumber;
-			if ( ! $processNumber = $this->getProcessNumbersByNumber()[$fileProcessNumber] ?? null) {
-				continue;
-			}
-			// Zde vratka provize při placení celé částky (i s provizí) na účet DELTA (SVK)
-			foreach ($processNumber->reservations as $reservation) {
-				if ($reservation->isPartnerSell() && $reservation->paymentCollection === Reservation::PaymentCollectionTO) {
-					$transactionExpense = new TransactionExpense();
-					$transactionExpense->date = $reservation->getContract()->dateTo;
-					$transactionExpense->name = $reservation->number;
-					$transactionExpense->currency = $reservation->getContract()->paymentCurrency;
-					$transactionExpense->amount = $reservation->getContract()->paymentSchedules['commissions']['paymentCurrency'];
-					$transactionExpense->reservationId = $reservation->id;
-					if ($transactionExpense->currency !== FInvoice::DefaultCurrencyCode) {
-						$date = min($transactionExpense->date, new DateTime('yesterday'));
-						$exchangeRate = ($this->exchangeRateCallback)($date, $transactionExpense->currency, FInvoice::DefaultCurrencyCode);
-						$transactionExpense->amountInDefaultCurrency = $exchangeRate->convertFrom($transactionExpense->amount);
-					} else {
-						$transactionExpense->amountInDefaultCurrency = $transactionExpense->amount;
-					}
-					$transactionExpenses[] = $transactionExpense;
-				}
+		$transactions = [];
+		foreach ($this->moneyTransactions as $transaction) {
+			if ( ! $transaction->isIncome) {
+				$transactions[$transaction->id] = $transaction;
 			}
 		}
+		return $transactions;
+	}
 
-		$today = new DateTime('today');
-		foreach ($this->getReservations() as $reservation) {
-			foreach ($reservation->getContract()->contractServices as $contractService) {
-				if ($contractService->kind === ContractService::KindServicePrice && $contractService->price) {
-					$transactionExpense = new TransactionExpense();
-					$transactionExpense->date = $reservation->created;
-					$transactionExpense->name = $contractService->name;
-					if ($contractService->originalCurrency) {
-						$transactionExpense->currency  = $contractService->originalCurrency;
-						$transactionExpense->amount = $contractService->originalPrice;
-					} else {
-						switch ($contractService->currency) { // todo sračka
-							case 'Kč':
-								$transactionExpense->currency = 'CZK';
-								break;
-							case 'Eur':
-								$transactionExpense->currency = 'EUR';
-								break;
-							case 'Ft':
-								$transactionExpense->currency = 'HUF';
-								break;
-						}
-						$transactionExpense->amount = $contractService->price;
-					}
-
-
-					if ($transactionExpense->currency !== FInvoice::DefaultCurrencyCode) {
-						$date = min($transactionExpense->date, new DateTime('yesterday'));
-						$exchangeRate = ($this->exchangeRateCallback)($date, $transactionExpense->currency, FInvoice::DefaultCurrencyCode);
-						$transactionExpense->amountInDefaultCurrency = $exchangeRate->convertFrom($transactionExpense->amount);
-					} else {
-						$transactionExpense->amountInDefaultCurrency = $transactionExpense->amount;
-					}
-
-					$transactionExpense->reservationId = $reservation->id;
-					$transactionExpenses[] = $transactionExpense;
-				}
+	public function getTransactionsExpensesCount(): int
+	{
+		$count = 0;
+		foreach ($this->moneyTransactions as $transaction) {
+			if ( ! $transaction->isIncome) {
+				$count++;
 			}
 		}
-
-		return $this->transactionExpenses = $transactionExpenses;
+		return $count;
 	}
 
 
@@ -355,11 +294,14 @@ class Folder extends CakeEntity
 	public function getTransactionsExpensesTotals(): array
 	{
 		$totals = [];
-		foreach ($this->getTransactionExpenses() as $transactionExpense) {
-			if ( ! isset($totals[$transactionExpense->currency])) {
-				$totals[$transactionExpense->currency] = 0;
+		foreach ($this->moneyTransactions as $transaction) {
+			if ($transaction->isIncome) {
+				continue;
 			}
-			$totals[$transactionExpense->currency] += $transactionExpense->amount;
+			if ( ! isset($totals[$transaction->fCurrencyId])) {
+				$totals[$transaction->fCurrencyId] = 0;
+			}
+			$totals[$transaction->fCurrencyId] += $transaction->amount;
 
 		}
 		return $totals;
@@ -368,8 +310,11 @@ class Folder extends CakeEntity
 	public function getTransactionsExpensesTotal(): float
 	{
 		$total = 0;
-		foreach ($this->getTransactionExpenses() as $transactionExpense) {
-			$total += $transactionExpense->amountInDefaultCurrency;
+		foreach ($this->moneyTransactions as $transaction) {
+			if ($transaction->isIncome) {
+				continue;
+			}
+			$total += $transaction->getAmountInDefaultCurrency();
 		}
 		return $total;
 	}
