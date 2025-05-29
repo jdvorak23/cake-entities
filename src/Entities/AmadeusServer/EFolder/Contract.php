@@ -3,6 +3,7 @@
 namespace Cesys\CakeEntities\Entities\AmadeusServer\EFolder;
 
 use Cesys\CakeEntities\Entities\CakeEntity;
+use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FSubject;
 use Nette\Utils\DateTime;
 
 class Contract extends CakeEntity
@@ -11,9 +12,11 @@ class Contract extends CakeEntity
 
 	public ?int $reservationId;
 
-	public ?string $travelAgencyInumber;
-
 	public ?string $travelAgencyName;
+
+	public ?string $travelAgencyCompany;
+
+	public ?string $travelAgencyInumber;
 
 	public ?string $clientStreet;
 
@@ -67,6 +70,11 @@ class Contract extends CakeEntity
 	 */
 	public array $paymentSchedules;
 
+	/**
+	 * Musí se ručně doplnit, páruje se mezi contracts.travel_agency_inumber a cz_c_2710.f_subjects.inumber
+	 * @var ?FSubject
+	 */
+	public ?FSubject $partner;
 
 	public static function getModelClass(): string
 	{

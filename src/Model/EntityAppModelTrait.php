@@ -306,7 +306,7 @@ trait EntityAppModelTrait
             $this->temporaryContains = null;
         }
         if ($isOriginalCall) {
-            bdump(self::$findPath);
+            //bdump(self::$findPath);
             self::$findPath = [];
 			return $entities;
         }
@@ -447,7 +447,7 @@ trait EntityAppModelTrait
     }
 
 
-    private function getDefaults(): array
+    public function getDefaults(): array
     {
         if (isset($this->defaults)) {
             return $this->defaults;

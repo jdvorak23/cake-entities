@@ -88,6 +88,31 @@ abstract class CakeEntity
         return $data;
     }
 
+	public function appendFromDbArray(array $data)
+	{
+		foreach ($data as $column => $value) {
+			$propertyName = Strings::fromSnakeCaseToCamelCase($column);
+			if ( ! array_key_exists($propertyName, static::getProperties())) {
+				continue;
+			}
+
+			$type = static::getProperties()[$propertyName]->getType();
+			if ($type) {
+				$typeName = $type->getName();
+				if (is_a($typeName, \DateTime::class, true) && is_string($value)) {
+					if (strpos($value, ' ') === false) {
+						$this->{$propertyName} = $typeName::createFromFormat('!Y-m-d', $value);
+					} else {
+						$this->{$propertyName} = $typeName::createFromFormat('Y-m-d H:i:s', $value);
+					}
+					continue;
+				}
+			}
+
+			$this->{$propertyName} = $value;
+		}
+	}
+
 
     /**
      * @param array $data

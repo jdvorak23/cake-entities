@@ -5,11 +5,9 @@ namespace Cesys\CakeEntities\Entities\EFolder;
 use Cesys\CakeEntities\Entities\AmadeusServer\EFolder\ContractService;
 use Cesys\CakeEntities\Entities\AmadeusServer\EFolder\Reservation;
 use Cesys\CakeEntities\Entities\CakeEntity;
-use Cesys\CakeEntities\Entities\EFolder\Custom\TransactionExpense;
 use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FBankTransaction;
 use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FInvoice;
 use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FInvoiceType;
-use Cesys\Utils\Arrays;
 use Nette\Utils\DateTime;
 
 class Folder extends CakeEntity
@@ -18,6 +16,9 @@ class Folder extends CakeEntity
 
 	public string $number;
     public string $clientName;
+
+	public ?DateTime $dateFrom;
+	public ?DateTime $dateTo;
 
     public ?DateTime $created;
     public ?DateTime $modified;
@@ -36,18 +37,22 @@ class Folder extends CakeEntity
 	public array $processNumbers;
 
 	/**
+	 * @var MoneyTransaction[] folder_id
+	 */
+	public array $moneyTransactions;
+
+	/**
+	 * Doplňuje se ručně podle created_by
+	 * @var User|null
+	 */
+	public ?User $agent;
+
+	/**
 	 * Doplňuje se ručně
 	 * První klíč je číslo rezervace a obsahuje všechny fBankTransactions (s klíčem (druhým) id)
 	 * @var FBankTransaction[][]
 	 */
 	public array $fBankTransactions;
-
-	/**
-	 * @var MoneyTransaction[] folder_id
-	 */
-	public array $moneyTransactions;
-
-	protected array $transactionExpenses;
 
 	/**
 	 * @var callable
@@ -159,7 +164,7 @@ class Folder extends CakeEntity
 	/**
 	 * @return ContractService[]
 	 */
-	public function getServiceContractServices(): array
+	/*public function getServiceContractServices(): array
 	{
 		$contractServices = [];
 		foreach ($this->getReservations() as $reservation) {
@@ -170,7 +175,7 @@ class Folder extends CakeEntity
 			}
 		}
 		return $contractServices;
-	}
+	}*/
 
 
 	public function getInvoicesTotalIncome(): float
@@ -211,14 +216,14 @@ class Folder extends CakeEntity
 	{
 		$transactions = [];
 		foreach ($this->moneyTransactions as $transaction) {
-			if ($transaction->isIncome) {
+			if ($transaction->isIncome && $transaction->active) {
 				$transactions[$transaction->id] = $transaction;
 			}
 		}
 		return $transactions;
 	}
 
-	public function getTransactionsIncomeCount(): int
+	/*public function getTransactionsIncomeCount(): int
 	{
 		$count = 0;
 		foreach ($this->moneyTransactions as $transaction) {
@@ -227,7 +232,7 @@ class Folder extends CakeEntity
 			}
 		}
 		return $count;
-	}
+	}*/
 
 
 	/**
@@ -237,7 +242,7 @@ class Folder extends CakeEntity
 	{
 		$totals = [];
 		foreach ($this->moneyTransactions as $transaction) {
-			if ( ! $transaction->isIncome) {
+			if ( ! $transaction->isIncome || ! $transaction->active) {
 				continue;
 			}
 			if ( ! isset($totals[$transaction->fCurrencyId])) {
@@ -252,7 +257,20 @@ class Folder extends CakeEntity
 	{
 		$total = 0;
 		foreach ($this->moneyTransactions as $transaction) {
-			if ( ! $transaction->isIncome) {
+			if ( ! $transaction->isIncome || ! $transaction->active) {
+				continue;
+			}
+			$total += $transaction->getAmountInDefaultCurrency();
+		}
+		return $total;
+	}
+
+	public function getTransactionsIncomeActualTotal(): float
+	{
+		$total = 0;
+		$today = new DateTime('today');
+		foreach ($this->moneyTransactions as $transaction) {
+			if ( ! $transaction->isIncome || ! $transaction->active || $transaction->date > $today) {
 				continue;
 			}
 			$total += $transaction->getAmountInDefaultCurrency();
@@ -269,14 +287,14 @@ class Folder extends CakeEntity
 	{
 		$transactions = [];
 		foreach ($this->moneyTransactions as $transaction) {
-			if ( ! $transaction->isIncome) {
+			if ( ! $transaction->isIncome && $transaction->active) {
 				$transactions[$transaction->id] = $transaction;
 			}
 		}
 		return $transactions;
 	}
 
-	public function getTransactionsExpensesCount(): int
+	/*public function getTransactionsExpensesCount(): int
 	{
 		$count = 0;
 		foreach ($this->moneyTransactions as $transaction) {
@@ -285,7 +303,7 @@ class Folder extends CakeEntity
 			}
 		}
 		return $count;
-	}
+	}*/
 
 
 	/**
@@ -295,7 +313,7 @@ class Folder extends CakeEntity
 	{
 		$totals = [];
 		foreach ($this->moneyTransactions as $transaction) {
-			if ($transaction->isIncome) {
+			if ($transaction->isIncome || ! $transaction->active) {
 				continue;
 			}
 			if ( ! isset($totals[$transaction->fCurrencyId])) {
@@ -311,7 +329,20 @@ class Folder extends CakeEntity
 	{
 		$total = 0;
 		foreach ($this->moneyTransactions as $transaction) {
-			if ($transaction->isIncome) {
+			if ($transaction->isIncome || ! $transaction->active) {
+				continue;
+			}
+			$total += $transaction->getAmountInDefaultCurrency();
+		}
+		return $total;
+	}
+
+	public function getTransactionsExpensesActualTotal(): float
+	{
+		$total = 0;
+		$today = new DateTime('today');
+		foreach ($this->moneyTransactions as $transaction) {
+			if ($transaction->isIncome || ! $transaction->active  || $transaction->date > $today) {
 				continue;
 			}
 			$total += $transaction->getAmountInDefaultCurrency();
