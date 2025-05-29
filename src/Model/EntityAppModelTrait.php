@@ -88,6 +88,13 @@ trait EntityAppModelTrait
      */
     private array $modelConditions = [];
 
+    /**
+     * @var int[]
+     */
+    private array $recursionCounters = [];
+
+    private static array $recursionVisits = [];
+
 
     /**
      * Získání třídy Entity, pokud není vše ve standardním namespace, je nutno v modelu přetížit,
@@ -128,6 +135,88 @@ trait EntityAppModelTrait
     public function getContains(bool $normalized = true): array
     {
         return $normalized ? $this->getNormalizedContains($this->contains) : $this->contains;
+    }
+
+    public function getFullContains(?array $contains = null): ?array
+    {
+        if ( ! isset($this->recursionCounters[__METHOD__])) {
+            $this->recursionCounters[__METHOD__] = 0;
+        }
+
+        if ($this->recursionCounters[__METHOD__] && $contains === null) {
+            // Jsme v rekurzi + defaultní $contains, tj. to už se vrátilo
+            return null;
+        }
+        if ( ! $contains = $this->getNormalizedContains($contains)) {
+            // Tj. nic
+            return [];
+        }
+        $this->recursionCounters[__METHOD__]++;
+        $isFirstClientCall = false;
+        if ( ! isset(self::$recursionVisits[__METHOD__])) {
+            $isFirstClientCall = true;
+        }
+        self::$recursionVisits[__METHOD__][] = static::class;
+
+        $containedModels = array_keys($contains);
+
+        /** @var class-string<E> $entityClass */
+        $entityClass = $this->getEntityClass();
+        /** @var \ReflectionProperty $property */
+        foreach ($entityClass::getPropertiesOfReferencedEntities() as $property) {
+            /** @var class-string<E> $referencedEntityClass */
+            $referencedEntityClass = $property->getType()->getName();
+            $modelClass = $referencedEntityClass::getModelClass();
+            $index = array_search($modelClass, $containedModels, true);
+            if ($index === false) {
+                continue;
+            }
+            unset($containedModels[$index]);
+
+            /** @var static $Model */
+            $Model = $this->getModel($modelClass);
+            if ( ! in_array(EntityAppModelTrait::class, Reflection::getUsedTraits(get_class($Model)))) {
+                throw new \InvalidArgumentException("Model '$modelClass' included in \$contains parameter is not instance of EntityAppModel.");
+            }
+
+            $contains[$modelClass] = $Model->getFullContains($contains[$Model::class]['contains'] ?? null);
+            /*if ($contains[$modelClass] === null) {
+                $contains[$modelClass] = '*recursion*';
+            }*/
+        }
+
+        /** @var Relation $relation */
+        foreach ($entityClass::getPropertiesOfRelatedEntities() as $propertyName => $relation) {
+            $modelClass = $relation->relatedEntityClass::getModelClass();
+            $index = array_search($modelClass, $containedModels, true);
+            if ($index === false) {
+                continue;
+            }
+            unset($containedModels[$index]);
+
+            /** @var static $Model */
+            $Model = $this->getModel($modelClass);
+            if ( ! in_array(EntityAppModelTrait::class, Reflection::getUsedTraits(get_class($Model)))) {
+                throw new \InvalidArgumentException("Model '$modelClass' included in \$contains parameter is not instance of EntityAppModel.");
+            }
+
+            if ( ! $Model->schema($relation->column)) {
+                // Musí být sloupec ve schema
+                continue;
+            }
+
+            $contains[$modelClass] = $Model->getFullContains($contains[$Model::class]['contains'] ?? null);
+            /*if ($contains[$modelClass] === null) {
+                $contains[$modelClass] = '*recursion*';
+            }*/
+        }
+
+        $this->recursionCounters[__METHOD__]--;
+        if ($isFirstClientCall) {
+            unset(self::$recursionVisits[__METHOD__]);
+        }
+
+        return $contains;
     }
 
 
