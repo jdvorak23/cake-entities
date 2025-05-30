@@ -27,7 +27,7 @@ class MoneyTransaction extends CakeEntity
 	
 	public ?string $variableSymbol;
 	
-	public float $amount;
+	public ?float $amount;
 	
 	public int $fCurrencyId;
 	
@@ -70,6 +70,9 @@ class MoneyTransaction extends CakeEntity
 	 */
 	public function getAmountInDefaultCurrency(): float
 	{
+		if ( ! $this->amount) {
+			return 0;
+		}
 		if ($exchangeRate = $this->getExchangeRate()) {
 			return $exchangeRate->convertFrom($this->amount);
 		}

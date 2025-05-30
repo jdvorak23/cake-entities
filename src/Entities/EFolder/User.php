@@ -24,6 +24,7 @@ class User extends CakeEntity
 		if (isset($this->superuserId)) {
 			return "$this->name (CeSYS)";
 		}
-		return $this->name;
+		$country = strtolower($this->country);
+		return "$this->name ($country$this->customerId)";
 	}
 }

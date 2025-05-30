@@ -70,7 +70,7 @@ class Reservation extends CakeEntity
 
 	public function getClientName(): string
 	{
-		return trim($this->firstname . ' ' . $this->surname);
+		return trim(trim($this->firstname) . ' ' . trim($this->surname));
 	}
 
 	public function getContract(): ?Contract

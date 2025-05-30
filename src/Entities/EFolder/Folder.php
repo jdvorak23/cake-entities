@@ -20,11 +20,18 @@ class Folder extends CakeEntity
 	public ?DateTime $dateFrom;
 	public ?DateTime $dateTo;
 
+	public ?int $sellerId;
+	public ?int $accountantId;
+
+
     public ?DateTime $created;
     public ?DateTime $modified;
 
     public ?int $createdBy;
     public ?int $modifiedBy;
+
+	public ?User $seller;
+	public ?User $accountant;
 
     /**
      * @var File[] folder_id
@@ -248,7 +255,7 @@ class Folder extends CakeEntity
 			if ( ! isset($totals[$transaction->fCurrencyId])) {
 				$totals[$transaction->fCurrencyId] = 0;
 			}
-			$totals[$transaction->fCurrencyId] += $transaction->amount;
+			$totals[$transaction->fCurrencyId] += (float) $transaction->amount;
 		}
 		return $totals;
 	}
@@ -319,7 +326,7 @@ class Folder extends CakeEntity
 			if ( ! isset($totals[$transaction->fCurrencyId])) {
 				$totals[$transaction->fCurrencyId] = 0;
 			}
-			$totals[$transaction->fCurrencyId] += $transaction->amount;
+			$totals[$transaction->fCurrencyId] += (float) $transaction->amount;
 
 		}
 		return $totals;
