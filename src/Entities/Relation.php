@@ -2,6 +2,8 @@
 
 namespace Cesys\CakeEntities\Entities;
 
+use Cesys\CakeEntities\Model\Entities\CakeEntity;
+
 class Relation
 {
     public \ReflectionProperty $property;

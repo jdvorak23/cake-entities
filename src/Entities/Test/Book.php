@@ -2,7 +2,8 @@
 
 namespace Cesys\CakeEntities\Entities\Test;
 
-use Cesys\CakeEntities\Entities\CakeEntity;
+use Cesys\CakeEntities\Model\Entities\CakeEntity;
+use Nette\Utils\DateTime;
 
 class Book extends CakeEntity
 {
@@ -13,6 +14,10 @@ class Book extends CakeEntity
     public int $authorId;
     public ?int $translatorId;
     public string $title;
+
+    public DateTime $created;
+
+    public ?DateTime $retolda;
 
     /**
      * @var Tag[] book_id
@@ -25,7 +30,10 @@ class Book extends CakeEntity
 
     public ?Book $parent;
 
-    public ?Book $strejda;
+    /**
+     * @var Book|null strejdaId
+     */
+    public ?Book $strejdomrd;
 
     /**
      * @var Book[] parent_id

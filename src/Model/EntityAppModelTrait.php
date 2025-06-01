@@ -2,8 +2,8 @@
 
 namespace Cesys\CakeEntities\Model;
 
-use Cesys\CakeEntities\Entities\CakeEntity;
 use Cesys\CakeEntities\Entities\Relation;
+use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Cesys\CakeEntities\Model\LazyModel\ModelLazyModelTrait;
 use Cesys\Utils\Arrays;
 use Cesys\Utils\Reflection;
@@ -186,7 +186,7 @@ trait EntityAppModelTrait
         }
 
         /** @var Relation $relation */
-        foreach ($entityClass::getPropertiesOfRelatedEntities() as $propertyName => $relation) {
+        foreach ($entityClass::getPropertiesOfRelatedEntities() as $relation) {
             $modelClass = $relation->relatedEntityClass::getModelClass();
             $index = array_search($modelClass, $containedModels, true);
             if ($index === false) {
@@ -312,15 +312,15 @@ trait EntityAppModelTrait
 			$params['fields'] = [];
 			/** @var class-string<E> $entityClass */
 			$entityClass = $this->getEntityClass();
-			foreach(array_keys($entityClass::getProperties()) as $propertyName) {
-				$columnName = Strings::fromCamelCaseToSnakeCase($propertyName);
-				if ($this->schema($columnName)) {
-					$params['fields'][] = $columnName;
+			foreach($entityClass::getColumnProperties() as $columnProperty) {
+                // todo
+				if ($columnSchema = $this->schema($columnProperty->column)) {
+					$params['fields'][] = $columnProperty->column;
 				}
 			}
 		}
         // Primární klíč musí být přítomen
-        if (is_array($params['fields']) && ! in_array($this->primaryKey, $params['fields'], true)) {
+        if ( ! in_array($this->primaryKey, $params['fields'], true)) {
             $params['fields'][] = $this->primaryKey;
         }
 
@@ -369,6 +369,7 @@ trait EntityAppModelTrait
                     // Pokud je fetchnuta znova entita, která už je v cache, nepřepisuje se!
                     continue;
                 }
+                // todo odbočka
                 $entity = $this->createEntity($entityData);
                 $entities[$entity->getPrimary()] = $entity;
                 $this->entities[$entity->getPrimary()] = $entity;

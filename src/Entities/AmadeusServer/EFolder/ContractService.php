@@ -2,8 +2,7 @@
 
 namespace Cesys\CakeEntities\Entities\AmadeusServer\EFolder;
 
-use Cesys\CakeEntities\Entities\CakeEntity;
-use Nette\Utils\DateTime;
+use Cesys\CakeEntities\Model\Entities\CakeEntity;
 
 class ContractService extends CakeEntity
 {

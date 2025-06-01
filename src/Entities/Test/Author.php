@@ -2,7 +2,7 @@
 
 namespace Cesys\CakeEntities\Entities\Test;
 
-use Cesys\CakeEntities\Entities\CakeEntity;
+use Cesys\CakeEntities\Model\Entities\CakeEntity;
 
 class Author extends CakeEntity
 {

@@ -4,10 +4,10 @@ namespace Cesys\CakeEntities\Entities\EFolder;
 
 use Cesys\CakeEntities\Entities\AmadeusServer\EFolder\ContractService;
 use Cesys\CakeEntities\Entities\AmadeusServer\EFolder\Reservation;
-use Cesys\CakeEntities\Entities\CakeEntity;
 use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FBankTransaction;
 use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FInvoice;
 use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FInvoiceType;
+use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Nette\Utils\DateTime;
 
 class Folder extends CakeEntity

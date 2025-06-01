@@ -2,8 +2,7 @@
 
 namespace Cesys\CakeEntities\Entities\UcaCustomer\EFolder;
 
-use Cesys\CakeEntities\Entities\CakeEntity;
-use Nette\Utils\DateTime;
+use Cesys\CakeEntities\Model\Entities\CakeEntity;
 
 class FInvoiceItem extends CakeEntity
 {

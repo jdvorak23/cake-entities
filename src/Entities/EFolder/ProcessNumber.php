@@ -3,7 +3,7 @@
 namespace Cesys\CakeEntities\Entities\EFolder;
 
 use Cesys\CakeEntities\Entities\AmadeusServer\EFolder\Reservation;
-use Cesys\CakeEntities\Entities\CakeEntity;
+use Cesys\CakeEntities\Model\Entities\CakeEntity;
 
 /**
  * process_number = vorgang, vorgangsnummer, buchungsnummer

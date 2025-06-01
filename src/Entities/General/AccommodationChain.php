@@ -2,7 +2,7 @@
 
 namespace Cesys\CakeEntities\Entities\General;
 
-use Cesys\CakeEntities\Entities\CakeEntity;
+use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Nette\Utils\DateTime;
 
 class AccommodationChain extends CakeEntity

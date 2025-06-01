@@ -2,10 +2,8 @@
 
 namespace Cesys\CakeEntities\Entities\AmadeusServer\EFolder;
 
-use Cesys\CakeEntities\Entities\AmadeusServer\EFolder\Contract;
-use Cesys\CakeEntities\Entities\CakeEntity;
 use Cesys\CakeEntities\Entities\EFolder\Invoice;
-use Cesys\CakeEntities\Entities\EFolder\ProcessNumber;
+use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Nette\Utils\DateTime;
 
 class Reservation extends CakeEntity

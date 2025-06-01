@@ -2,7 +2,7 @@
 
 namespace Cesys\CakeEntities\Entities\UcaCustomer\EFolder;
 
-use Cesys\CakeEntities\Entities\CakeEntity;
+use Cesys\CakeEntities\Model\Entities\CakeEntity;
 
 class FInvoiceType extends CakeEntity
 {

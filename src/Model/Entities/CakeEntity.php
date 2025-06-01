@@ -1,11 +1,10 @@
 <?php
 
-namespace Cesys\CakeEntities\Entities;
+namespace Cesys\CakeEntities\Model\Entities;
 
-use Cesys\Utils\Strings;
+use Cesys\CakeEntities\Entities\Relation;
 use Cesys\Utils\Reflection;
-
-require_once __DIR__ . '/Relation.php';
+use Cesys\Utils\Strings;
 
 abstract class CakeEntity
 {
@@ -24,6 +23,16 @@ abstract class CakeEntity
     private static array $properties = [];
 
     /**
+     * @var ColumnProperty[][]
+     */
+    private static array $columnProperties = [];
+
+    /**
+     * @var ColumnProperty[][]
+     */
+    private static array $columnPropertiesByColumn = [];
+
+    /**
      * @var \ReflectionProperty[][]
      */
     private static array $propertiesOfReferencedEntities = [];
@@ -34,16 +43,18 @@ abstract class CakeEntity
     private static array $propertiesOfRelatedEntities = [];
 
 
+
     /**
      * @return int|string|null
      */
     public function getPrimary()
     {
-        $rp = static::getProperties()[static::getPrimaryPropertyName()];
-        if ( ! $rp->isInitialized($this)) {
+        // todo err?
+        $primaryColumnProperty = static::getColumnProperties()[static::getPrimaryPropertyName()];;
+        if ( ! $primaryColumnProperty->property->isInitialized($this)) {
             return null;
         }
-        return $rp->getValue($this);
+        return $primaryColumnProperty->property->getValue($this);
     }
 
 
@@ -53,35 +64,35 @@ abstract class CakeEntity
      */
     public function setPrimary($value)
     {
-        $rp = static::getProperties()[static::getPrimaryPropertyName()];
-        $rp->setValue($this, $value);
+        $primaryColumnProperty = static::getColumnProperties()[static::getPrimaryPropertyName()];
+        $primaryColumnProperty->property->setValue($this, $value);
     }
 
 
     public function toDbArray(): array
     {
         $data = [];
-        foreach (static::getProperties() as $propertyName => $property) {
+        foreach (static::getColumnProperties() as $propertyName => $columnProperty) {
             if (in_array($propertyName, static::getExcludedFromDbArray(), true)) {
                 continue;
             }
-            if ( ! $property->isInitialized($this)) {
+            if ( ! $columnProperty->property->isInitialized($this)) {
                 continue;
             }
-            $column = Strings::fromCamelCaseToSnakeCase($propertyName);
+
             $value = $this->{$propertyName};
-            $type = $property->getType();
+            $type = $columnProperty->property->getType();
             if ( ! $type || $value === null) {
-                $data[$column] = $value;
+                $data[$columnProperty->column] = $value;
                 continue;
             }
             $typeName = $type->getName();
             if (is_a($typeName, \DateTime::class, true)) {
-                $data[$column] = $value->format('Y-m-d H:i:s');
+                $data[$columnProperty->column] = $columnProperty->isDateOnly ? $value->format('Y-m-d') : $value->format('Y-m-d H:i:s');
             } elseif ($typeName === 'bool') {
-                $data[$column] = (int) $value;
+                $data[$columnProperty->column] = (int) $value;
             } else {
-                $data[$column] = $value;
+                $data[$columnProperty->column] = $value;
             }
         }
 
@@ -90,27 +101,7 @@ abstract class CakeEntity
 
 	public function appendFromDbArray(array $data)
 	{
-		foreach ($data as $column => $value) {
-			$propertyName = Strings::fromSnakeCaseToCamelCase($column);
-			if ( ! array_key_exists($propertyName, static::getProperties())) {
-				continue;
-			}
-
-			$type = static::getProperties()[$propertyName]->getType();
-			if ($type) {
-				$typeName = $type->getName();
-				if (is_a($typeName, \DateTime::class, true) && is_string($value)) {
-					if (strpos($value, ' ') === false) {
-						$this->{$propertyName} = $typeName::createFromFormat('!Y-m-d', $value);
-					} else {
-						$this->{$propertyName} = $typeName::createFromFormat('Y-m-d H:i:s', $value);
-					}
-					continue;
-				}
-			}
-
-			$this->{$propertyName} = $value;
-		}
+        self::appendToEntity($data, $this);
 	}
 
 
@@ -121,29 +112,39 @@ abstract class CakeEntity
     public static function createFromDbArray(array $data)
     {
         $entity = new static();
+        self::appendToEntity($data, $entity);
+        return $entity;
+    }
+
+
+    /**
+     * @param array $data
+     * @param CakeEntity $entity
+     * @return void
+     */
+    private static function appendToEntity(array $data, CakeEntity $entity): void
+    {
         foreach ($data as $column => $value) {
-            $propertyName = Strings::fromSnakeCaseToCamelCase($column);
-            if ( ! array_key_exists($propertyName, static::getProperties())) {
+            if ( ! array_key_exists($column, static::getColumnPropertiesByColumn())) {
                 continue;
             }
+            $columnProperty = static::getColumnPropertiesByColumn()[$column];
 
-            $type = static::getProperties()[$propertyName]->getType();
+            $type = $columnProperty->property->getType();
             if ($type) {
                 $typeName = $type->getName();
                 if (is_a($typeName, \DateTime::class, true) && is_string($value)) {
-					if (strpos($value, ' ') === false) {
-						$entity->{$propertyName} = $typeName::createFromFormat('!Y-m-d', $value);
-					} else {
-						$entity->{$propertyName} = $typeName::createFromFormat('Y-m-d H:i:s', $value);
-					}
+                    if (strpos($value, ' ') === false) {
+                        $entity->{$columnProperty->propertyName} = $typeName::createFromFormat('!Y-m-d', $value);
+                    } else {
+                        $entity->{$columnProperty->propertyName} = $typeName::createFromFormat('Y-m-d H:i:s', $value);
+                    }
                     continue;
                 }
             }
 
-            $entity->{$propertyName} = $value;
+            $entity->{$columnProperty->propertyName} = $value;
         }
-
-        return $entity;
     }
 
 
@@ -218,8 +219,57 @@ abstract class CakeEntity
             }
             $result[$property->getName()] = $property;
         }
+
         self::$properties[static::class] = $result;
         return self::$properties[static::class];
+    }
+
+    /**
+     * @return ColumnProperty[]
+     */
+    public static function &getColumnProperties(): array
+    {
+        if (isset(self::$columnProperties[static::class])) {
+            return self::$columnProperties[static::class];
+        }
+        $result = [];
+        foreach (Reflection::getReflectionPropertiesOfClass(static::class) as $property) {
+            if ($property->isStatic() || $property->isPrivate() || $property->isProtected() || in_array($property->getName(), static::getExcludedFromProperties(), true)) {
+                continue;
+            }
+            if ($type = $property->getType()) {
+                if ( ! in_array($type->getName(), ['int', 'float', 'string', 'bool'],true) && ! is_a($type->getName(), \DateTime::class, true)) {
+                    continue;
+                }
+            }
+            $columnProperty = new ColumnProperty();
+            $columnProperty->entityClass = static::class;
+            $columnProperty->propertyName = $property->getName();
+            // Todo povolit nějak přes anotaci jinak než fromCamelCaseToSnakeCase?
+            $columnProperty->column = Strings::fromCamelCaseToSnakeCase($columnProperty->propertyName);
+            $columnProperty->property = $property;
+            $result[$columnProperty->propertyName] = $columnProperty;
+        }
+
+        self::$columnProperties[static::class] = $result;
+        return self::$columnProperties[static::class];
+    }
+
+    /**
+     * @return ColumnProperty[]
+     */
+    public static function &getColumnPropertiesByColumn(): array
+    {
+        if (isset(self::$columnPropertiesByColumn[static::class])) {
+            return self::$columnPropertiesByColumn[static::class];
+        }
+        $result = [];
+        foreach (static::getColumnProperties() as $columnProperty) {
+            $result[$columnProperty->column] = $columnProperty;
+        }
+
+        self::$columnPropertiesByColumn[static::class] = $result;
+        return self::$columnPropertiesByColumn[static::class];
     }
 
     /**
@@ -233,10 +283,24 @@ abstract class CakeEntity
         }
         $result = [];
         foreach (Reflection::getReflectionPropertiesOfClass(static::class) as $property) {
+            if ($property->isStatic() || $property->isPrivate() || $property->isProtected()) {
+                continue;
+            }
             if ($type = $property->getType()) {
                 if (is_a($type->getName(), self::class, true)) {
+                    if ($annotation = Reflection::parseAnnotation($property, 'var')) {
+                        $parsed = preg_split('/[\s\t]+/', trim($annotation), -1, PREG_SPLIT_NO_EMPTY);
+                        if (count($parsed) > 1) {
+                            [$annotationType, $keyPropertyName] = $parsed;
+                            if ($annotationType && $keyPropertyName && array_key_exists($keyPropertyName, static::getColumnProperties())) {
+                                $result[$keyPropertyName] = $property;
+                                continue;
+                            }
+                        }
+
+                    }
                     $keyPropertyName = $property->getName() . 'Id';
-                    if (array_key_exists($keyPropertyName, static::getProperties())) {
+                    if (array_key_exists($keyPropertyName, static::getColumnProperties())) {
                         $result[$keyPropertyName] = $property;
                     }
                 }

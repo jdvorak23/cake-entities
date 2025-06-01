@@ -2,8 +2,8 @@
 
 namespace Cesys\CakeEntities\Entities\UcaCustomer\EFolder;
 
-use Cesys\CakeEntities\Entities\CakeEntity;
 use Cesys\CakeEntities\Entities\EFolder\ExchangeRate;
+use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Nette\Utils\DateTime;
 
 class FBankTransaction extends CakeEntity
