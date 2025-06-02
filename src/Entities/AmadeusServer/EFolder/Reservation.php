@@ -24,6 +24,8 @@ class Reservation extends CakeEntity
 
 	public int $id;
 
+	public ?int $tourOperatorId;
+
 	public int $travelAgencyId;
 
 	public ?int $customerId;

@@ -33,6 +33,8 @@ class MoneyTransaction extends CakeEntity
 	
 	public bool $isIncome;
 
+	public bool $checked;
+
 	public bool $active;
 
 	public FCurrency $fCurrency;
