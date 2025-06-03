@@ -48,11 +48,6 @@ class Folder extends CakeEntity
 	 */
 	public array $moneyTransactions;
 
-	/**
-	 * Doplňuje se ručně podle created_by
-	 * @var User|null
-	 */
-	public ?User $agent;
 
 	/**
 	 * Doplňuje se ručně

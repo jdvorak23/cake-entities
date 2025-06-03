@@ -70,12 +70,6 @@ class Contract extends CakeEntity
 	 */
 	public array $paymentSchedules;
 
-	/**
-	 * Musí se ručně doplnit, páruje se mezi contracts.travel_agency_inumber a cz_c_2710.f_subjects.inumber
-	 * @var ?FSubject
-	 */
-	public ?FSubject $partner;
-
 	public static function getModelClass(): string
 	{
 		return static::$modelClasses[static::class] ??= 'EfAmadeusContract';

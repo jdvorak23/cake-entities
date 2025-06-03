@@ -143,7 +143,13 @@ abstract class CakeEntity
                 }
             }
 
-            $entity->{$columnProperty->propertyName} = $value;
+			// To pak padá pokud se vkládají hodnoty z formuláře, musí se převést prázdný řetězec na null
+			// Takže na to seru a obecně, pokud to je null-possible property a hodnota je '', uloží se null
+			if ($value === '' && ( ! $type || $type->allowsNull())) {
+				$entity->{$columnProperty->propertyName} = null;
+			} else {
+				$entity->{$columnProperty->propertyName} = $value;
+			}
         }
     }
 

@@ -14,6 +14,8 @@ class ProcessNumber extends CakeEntity
 
 	public int $folderId;
 
+	public ?int $tourOperatorId;
+
 	public string $number;
 
 	/**
