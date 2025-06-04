@@ -94,4 +94,38 @@ class Reservation extends CakeEntity
 		return $this->reservationType === self::ReservationTypeCustomPartnerSell
 			|| $this->reservationType === self::ReservationTypeSystemPartnerSell;
 	}
+
+	public function getPrice(): float
+	{
+		return $this->getContract()->getPrice();
+	}
+
+	public function getCommission(): float
+	{
+		return $this->getContract()->getCommission();
+	}
+
+	public function getPriceWithoutCommission(): float
+	{
+		return $this->getContract()->getPriceWithoutCommission();
+	}
+
+	public function getDeposit(): float
+	{
+		return $this->paymentCollection === self::PaymentCollectionSeller
+			? $this->getContract()->getDepositWithoutCommission()
+			: $this->getContract()->getDeposit();
+	}
+
+	public function getSupplement(): float
+	{
+		return $this->paymentCollection === self::PaymentCollectionSeller
+			? $this->getContract()->getSupplementWithoutCommission()
+			: $this->getContract()->getSupplement();
+	}
+
+	public function getTotalPayment(): float
+	{
+		return $this->getDeposit() + $this->getSupplement();
+	}
 }

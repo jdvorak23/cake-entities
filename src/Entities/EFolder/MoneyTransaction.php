@@ -10,6 +10,10 @@ use Nette\Utils\DateTime;
 
 class MoneyTransaction extends CakeEntity
 {
+	const TypeTransfer = 'transfer';
+	const TypeCard = 'card';
+	const TypeCash = 'cash';
+	const TypeVoucher = 'voucher';
 	
 	public int $id;
 	
@@ -30,8 +34,17 @@ class MoneyTransaction extends CakeEntity
 	public ?float $amount;
 	
 	public int $fCurrencyId;
+
+	public ?string $type;
 	
 	public bool $isIncome;
+
+	/**
+	 * false - transakce proběhla
+	 * true - transakce je očekávána (budoucí)
+	 * @var bool
+	 */
+	public bool $isProspective;
 
 	public bool $checked;
 

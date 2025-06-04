@@ -67,9 +67,20 @@ class FBankTransaction extends CakeEntity
 	 */
 	protected $exchangeRateCallback;
 
+	/**
+	 * Ručně se musí dodat
+	 * @var FCurrency
+	 */
+	public FCurrency $fCurrency;
+
 	public static function getModelClass(): string
 	{
 		return static::$modelClasses[static::class] ??= 'EfFBankTransaction';
+	}
+
+	public function getRoundedAmount(): float
+	{
+		return round($this->value, $this->fCurrency->roundCount);
 	}
 
 
@@ -103,7 +114,7 @@ class FBankTransaction extends CakeEntity
 		if ($exchangeRate = $this->getExchangeRate()) {
 			return $exchangeRate->convertFrom($this->value);
 		}
-		return $this->value;
+		return $this->getRoundedAmount();
 	}
 
 	/**

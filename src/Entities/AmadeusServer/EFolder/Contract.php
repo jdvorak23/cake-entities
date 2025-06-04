@@ -2,6 +2,7 @@
 
 namespace Cesys\CakeEntities\Entities\AmadeusServer\EFolder;
 
+use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FCurrency;
 use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FSubject;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Nette\Utils\DateTime;
@@ -48,11 +49,20 @@ class Contract extends CakeEntity
 
 	/**
 	 * Splatnost
+	 * Sice je nullable ale null nikdy není, to nemá smysl
 	 * @var DateTime|null
 	 */
 	public ?DateTime $priceMaturity;
 
 	/**
+	 * Splatnost zálohy
+	 * @var DateTime|null
+	 */
+	public ?DateTime $depositMaturity;
+
+	/**
+	 * Je sice nullable, jsou i záznamy s null, nicméně poslední v roce 2022
+	 * Já počítám s tím, že tam vždy je a správně, jinak spadne úplně všechno...
 	 * @var string|null 3písmenný kód, jako 'CZK', 'EUR', 'HUF', ...
 	 */
 	public ?string $paymentCurrency;
@@ -69,6 +79,12 @@ class Contract extends CakeEntity
 	 * @var array
 	 */
 	public array $paymentSchedules;
+
+	/**
+	 * Ručně se musí dodat
+	 * @var FCurrency
+	 */
+	public FCurrency $fPaymentCurrency;
 
 	public static function getModelClass(): string
 	{
@@ -91,5 +107,50 @@ class Contract extends CakeEntity
 			return false;
 		}
 		return ((string)(int) $this->clientCountry) === $this->clientCountry;
+	}
+
+	public function getPrice(): float
+	{
+		return $this->fPaymentCurrency->round($this->paymentSchedules['totalPrice']['paymentCurrency']);
+	}
+
+	public function getCommission(): float
+	{
+		return $this->fPaymentCurrency->round($this->paymentSchedules['commissions']['paymentCurrency']);
+	}
+
+	public function getPriceWithoutCommission(): float
+	{
+		return $this->getPrice() - $this->getCommission();
+	}
+
+	public function getDeposit(): float
+	{
+		return $this->fPaymentCurrency->round($this->paymentSchedules['deposit']['paymentCurrency']);
+	}
+
+	public function getDepositWithoutCommission(): float
+	{
+		return $this->fPaymentCurrency->round($this->paymentSchedules['priceWithoutCommissions']['deposit']['paymentCurrency']);
+	}
+
+	public function getSupplement(): float
+	{
+		return $this->fPaymentCurrency->round($this->paymentSchedules['supplement']['paymentCurrency']);
+	}
+
+	public function getSupplementWithoutCommission(): float
+	{
+		return $this->fPaymentCurrency->round($this->paymentSchedules['priceWithoutCommissions']['supplement']['paymentCurrency']);
+	}
+
+	public function getTotalPayment(): float
+	{
+		return $this->getDeposit() + $this->getSupplement();
+	}
+
+	public function getTotalPaymentWithoutCommission(): float
+	{
+		return $this->getDepositWithoutCommission() + $this->getSupplementWithoutCommission();
 	}
 }
