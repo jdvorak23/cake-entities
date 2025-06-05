@@ -173,13 +173,13 @@ trait EntityAppModelTrait
             }
             unset($containedModels[$index]);
 
-            /** @var static $Model */
+            /** @var static&\AppModel $Model */
             $Model = $this->getModel($modelClass);
             if ( ! in_array(EntityAppModelTrait::class, Reflection::getUsedTraits(get_class($Model)))) {
                 throw new \InvalidArgumentException("Model '$modelClass' included in \$contains parameter is not instance of EntityAppModel.");
             }
 
-            $contains[$modelClass] = $Model->getFullContains($contains[$Model::class]['contains'] ?? null);
+            $contains[$modelClass] = $Model->getFullContains($contains[$modelClass]['contains'] ?? null);
             /*if ($contains[$modelClass] === null) {
                 $contains[$modelClass] = '*recursion*';
             }*/
@@ -194,7 +194,7 @@ trait EntityAppModelTrait
             }
             unset($containedModels[$index]);
 
-            /** @var static $Model */
+            /** @var static&\AppModel $Model */
             $Model = $this->getModel($modelClass);
             if ( ! in_array(EntityAppModelTrait::class, Reflection::getUsedTraits(get_class($Model)))) {
                 throw new \InvalidArgumentException("Model '$modelClass' included in \$contains parameter is not instance of EntityAppModel.");
@@ -205,7 +205,7 @@ trait EntityAppModelTrait
                 continue;
             }
 
-            $contains[$modelClass] = $Model->getFullContains($contains[$Model::class]['contains'] ?? null);
+            $contains[$modelClass] = $Model->getFullContains($contains[$modelClass]['contains'] ?? null);
             /*if ($contains[$modelClass] === null) {
                 $contains[$modelClass] = '*recursion*';
             }*/
@@ -769,6 +769,7 @@ trait EntityAppModelTrait
                 // Musí být v contains a řešíme vše MIMO rekurzi do vlastní  tabulky
                 continue;
             }
+            /** @var static&\AppModel $Model */
             $Model = $this->getModel($modelClass);
             if ( ! in_array(EntityAppModelTrait::class, Reflection::getUsedTraits(get_class($Model)))) {
                 throw new \InvalidArgumentException("Model '$modelClass' included in \$contains parameter is not instance of EntityAppModel.");
@@ -813,7 +814,7 @@ trait EntityAppModelTrait
                 // Musí být v contains a řešíme vše MIMO rekurzi do vlastní  tabulky
                 continue;
             }
-
+            /** @var static&\AppModel $Model */
             $Model = $this->getModel($modelClass);
             if ( ! in_array(EntityAppModelTrait::class, Reflection::getUsedTraits(get_class($Model)))) {
                 throw new \InvalidArgumentException("Model '$modelClass' included in \$contains parameter is not instance of EntityAppModel.");
@@ -852,6 +853,7 @@ trait EntityAppModelTrait
 		bdump($this->modelConditions);*/
 		//foreach (array_unique($modelsWithNewConditions) as $modelClass) {
         foreach (array_keys($this->modelConditions) as $modelClass) {
+            /** @var static&\AppModel $Model */
             $Model = $this->getModel($modelClass);
             $modelContains = null;
             if ($params = is_array($contains[$modelClass]) ? $contains[$modelClass] : []) {
