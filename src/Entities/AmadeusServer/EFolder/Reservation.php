@@ -11,16 +11,35 @@ class Reservation extends CakeEntity
 	/**
 	 * Typy enum $paymentCollection
 	 */
-	const PaymentCollectionSeller = 'seller';
-	const PaymentCollectionTO = 'tour_operator';
+	public const PaymentCollectionSeller = 'seller';
+	public const PaymentCollectionTO = 'tour_operator';
 
 	/**
 	 * Typy 'enum' $reservationType. Ve skutečnosti není enum, ale pracuje se s ním tak
 	 */
-	const ReservationTypeCustomDirectSell = 'customDirectSell';
-	const ReservationTypeCustomPartnerSell = 'customPartnerSell';
-	const ReservationTypeSystemDirectSell = 'systemDirectSell';
-	const ReservationTypeSystemPartnerSell = 'systemPartnerSell';
+	public const ReservationTypeCustomDirectSell = 'customDirectSell';
+	public const ReservationTypeCustomPartnerSell = 'customPartnerSell';
+	public const ReservationTypeSystemDirectSell = 'systemDirectSell';
+	public const ReservationTypeSystemPartnerSell = 'systemPartnerSell';
+
+	/**
+	 * Typy enum $paymentStatus
+	 */
+	public const PaymentStatusUnpaid = 'unpaid';
+
+	public const PaymentStatusOther = 'other';
+
+	public const PaymentStatusOption = 'option';
+
+	public const PaymentStatusPaidDeposit = 'paid_deposit';
+
+	public const PaymentStatusPaid = 'paid';
+
+	public const PaymentStatusReturned = 'returned';
+
+	public const PaymentStatusCancelled = 'cancelled';
+
+
 
 	public int $id;
 
@@ -32,11 +51,14 @@ class Reservation extends CakeEntity
 
 	public ?int $efProcessNumberId;
 
+	public ?string $paymentStatus;
+	
+	public string $reservationType;
+	
+
 	public ?int $number;
 
 	public ?string $processNumber;
-
-	public string $reservationType;
 
 	public ?int $commissionPercent;
 
@@ -45,7 +67,7 @@ class Reservation extends CakeEntity
 	public string $surname;
 
 	/**
-	 * Viz constanty
+	 * Viz public constanty
 	 * @var string
 	 */
 	public string $paymentCollection;
