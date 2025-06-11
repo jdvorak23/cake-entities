@@ -18,7 +18,7 @@ trait ModelLazyModelTrait
      */
     public function __construct($id = false, $table = null, $ds = null)
     {
+		$this->lazyModelTraitConstructor();
         parent::__construct($id, $table, $ds);
-        $this->lazyModelTraitConstructor();
     }
 }

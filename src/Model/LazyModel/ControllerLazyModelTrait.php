@@ -15,7 +15,7 @@ trait ControllerLazyModelTrait
      */
     public function __construct()
     {
+		$this->lazyModelTraitConstructor();
         parent::__construct();
-        $this->lazyModelTraitConstructor();
     }
 }

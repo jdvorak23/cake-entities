@@ -4,6 +4,9 @@ namespace Cesys\CakeEntities\Model\Entities;
 
 class ColumnProperty
 {
+	/**
+	 * @var class-string<CakeEntity>
+	 */
     public string $entityClass;
 
     public string $column;
