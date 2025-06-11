@@ -75,7 +75,7 @@ trait LazyModelTrait
         }
 
         // Volání typované definované property, která nemá hodnotu => Error
-        throw new \Error("Typed property $staticClass::\$$name must not be accessed before initialization");
+        throw new \Error("Typed property $staticClass::\$$name must not be accessed before initialization.");
     }
 
 

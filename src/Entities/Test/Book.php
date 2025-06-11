@@ -12,10 +12,14 @@ class Book extends CakeEntity
 
     public ?int $strejdaId;
     public int $authorId;
+
+	public ?string $authorName;
     public ?int $translatorId;
     public string $title;
 
     public DateTime $created;
+
+	public DateTime $modified;
 
     public ?DateTime $retolda;
 
@@ -26,14 +30,17 @@ class Book extends CakeEntity
 
     public Author $author;
 
+    /**
+     * @var ?Author authorName name
+     */
     public ?Author $translator;
 
     public ?Book $parent;
 
     /**
-     * @var Book|null strejdaId
+     * @var Book|null
      */
-    public ?Book $strejdomrd;
+    public ?Book $strejda;
 
     /**
      * @var Book[] parent_id
