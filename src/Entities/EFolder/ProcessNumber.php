@@ -23,6 +23,8 @@ class ProcessNumber extends CakeEntity
 	 */
 	public array $reservations;
 
+	public Folder $folder;
+
 	public function getLastDateTo(): ?\DateTime
 	{
 		$lastDate = null;

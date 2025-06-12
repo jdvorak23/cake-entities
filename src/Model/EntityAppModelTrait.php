@@ -7,14 +7,12 @@ use Cesys\CakeEntities\Model\Entities\ColumnProperty;
 use Cesys\CakeEntities\Model\Entities\EntityHelper;
 use Cesys\CakeEntities\Model\Entities\RelatedProperty;
 use Cesys\CakeEntities\Model\Find\Conditions;
-use Cesys\CakeEntities\Model\Find\Contains;
 use Cesys\CakeEntities\Model\Find\Params;
 use Cesys\CakeEntities\Model\LazyModel\ModelLazyModelTrait;
 use Cesys\CakeEntities\Model\Recursion\FindQuery;
 use Cesys\CakeEntities\Model\Recursion\Query;
 use Cesys\Utils\Arrays;
 use Cesys\Utils\Reflection;
-use Cesys\Utils\Strings;
 
 /**
  * Pokud v use tříde je definován konstruktor, je v něm potřeba volat $this->lazyModelTraitConstructor();
@@ -40,6 +38,13 @@ trait EntityAppModelTrait
 	];
 
     protected array $contains = [];
+
+	protected bool $isStatic = false;
+
+	/**
+	 * @var array|false
+	 */
+	protected $fetchedAll = false;
 
     /**
      * Třída entity odpovídající modelu
@@ -123,16 +128,33 @@ trait EntityAppModelTrait
 		//bdump($contains);
         if ( ! $contains) {
             // Tj. nic
-			$query->end();
+			if ($query->end()) {
+				// Toto pokud ten první model má []
+				if ($resetTemporaryContains) {
+					foreach (array_unique($query->path) as $modelClass) {
+						/** @var static $Model */
+						$Model = $this->getModel($modelClass);
+						$Model->setTemporaryContains();
+					}
+				}
+
+				$query = null;
+				$contains = [static::class => ['contains' => $contains]];
+			}
             return $contains;
         }
 
         $containedModels = array_keys($contains);
 
+		// todo musí se dělat se zkontrolovaným schéma jeste pres model, pze pak pokud neni ve schema jsou errory, pze by se muselo "odebrat"
 		$relatedProperties = array_merge(
 			EntityHelper::getPropertiesOfReferencedEntities(static::getEntityClass()),
 			EntityHelper::getPropertiesOfRelatedEntities(static::getEntityClass())
 		);
+
+		// Odebereme z $contains všechny klíče (= modely), co nejsou v $relatedProperties
+		$modelsInRelatedProperties = array_map(fn(RelatedProperty $relatedProperty) => $relatedProperty->relatedColumnProperty->entityClass::getModelClass(), $relatedProperties);
+		$contains = array_intersect_key($contains, array_flip($modelsInRelatedProperties));
 
         foreach ($relatedProperties as $relatedProperty) {
             $modelClass = $relatedProperty->relatedColumnProperty->entityClass::getModelClass();
@@ -362,6 +384,7 @@ trait EntityAppModelTrait
 			&& ! $fullContains->params->getConditions()->stringConditions
 			&& ! $fullContains->params->getConditions()->isEmpty()
 			&& ! $findQuery->isOriginalCall()
+			&& ! $this->isStatic
 		) {
 			// Řešíme rekurzi do vlastní tabulky, ale ne tu, kde už je to v conditions
 			$relatedContains = $fullContains->contains[static::class];
@@ -376,9 +399,46 @@ trait EntityAppModelTrait
 
 		}
 
-
 		$entities = [];
-		if ($findQuery->isOriginalCall() || ! $fullContains->params->getConditions()->isEmpty()) {
+
+		if ($this->isStatic) {
+			if ($this->fetchedAll !== false) {
+				foreach ($this->fetchedAll as $entity) {
+					$findQuery->cacheEntity($entity);
+				}
+			} else {
+				$this->fetchedAll = [];
+				$params = $fullContains->params->toArray();
+				$params['conditions'] = [];
+				$entitiesData = $this->find('all', $params);
+				foreach ($entitiesData as $entityData) {
+					$entity = $this->createEntity($entityData);
+					$this->entities[$entity->getPrimary()] = $entity;
+					$this->fetchedAll[$entity->getPrimary()] = $entity;
+					$findQuery->cacheEntity($entity);
+				}
+				$this->appendSameEntities();
+			}
+			if ($findQuery->isOriginalCall()) {
+				//system.
+				if ($fullContains->params->getConditions()->isEmpty()) {
+					$entities = $this->fetchedAll;
+				} else {
+					$params = $fullContains->params->toArray();
+					$params['fields'] = [$this->primaryKey, $this->primaryKey];
+					$idsInOrder = $this->find('list', $params);
+					foreach ($idsInOrder as $id) {
+						$entities[$id] = $this->fetchedAll[$id];
+					}
+				}
+
+			}
+
+			$fullContains->params->clear();
+		}
+
+		if ( ! $this->isStatic
+			&& ($findQuery->isOriginalCall() || ! $fullContains->params->getConditions()->isEmpty())) {
 			// První volání, nebo když je neco v conditions
 			$entitiesData = $this->find('all', $fullContains->params->toArray());
 			$cache = $findQuery->getCache($this->primaryKey);
@@ -416,7 +476,7 @@ trait EntityAppModelTrait
 		}
 
 
-		if (isset($fullContains->contains[static::class])) {
+		if (isset($fullContains->contains[static::class]) && ! $this->isStatic) {
 			// Řešíme rekurzi do vlastní tabulky
 			$relatedContains = $fullContains->contains[static::class];
 			if ($fullContains !== $relatedContains || $findQuery->isOriginalCall()) {
@@ -447,7 +507,7 @@ trait EntityAppModelTrait
 
 
         if ($findQuery->findEnd()) {
-            bdump($findQuery);
+//            bdump($findQuery, static::class);
 			array_pop(self::$findQueries);
             return $entities;
         }
@@ -981,8 +1041,14 @@ trait EntityAppModelTrait
 							} else {
 								$appendValue = $cache;
 							}
+							if ($appendValue === null) {
+								if ($relatedProperty->property->getType()->allowsNull()) {
+									$relatedProperty->property->setValue($entity, null);
+								}
+							} else {
+								$relatedProperty->property->setValue($entity, $appendValue);
+							}
 
-							$relatedProperty->property->setValue($entity, $appendValue);
 						};
 
 						$modelContainsModels = $modelContains->contains;

@@ -12,30 +12,20 @@ class ExchangeRate extends CakeEntity
 
 	public DateTime $date;
 
-	/**
-	 * 3-písmenný kód, toto je měna 'základní'
-	 * @var string
-	 */
-	public string $refCurrency;
+	public int $refCurrencyId;
 
-	/**
-	 * 3-písmenný kód, toto je měna 'cizí'
-	 * @var string
-	 */
-	public string $currency;
+	public int $currencyId;
 	public float $rate;
 
 	public int $count;
 
 	/**
-	 * Ručně se musí dodat
-	 * @var FCurrency
+	 * @var FCurrency refCurrencyId
 	 */
 	public FCurrency $fRefCurrency;
 
 	/**
-	 * Ručně se musí dodat
-	 * @var FCurrency
+	 * @var FCurrency currencyId
 	 */
 	public FCurrency $fCurrency;
 

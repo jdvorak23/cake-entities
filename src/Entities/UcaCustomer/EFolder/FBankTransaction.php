@@ -61,17 +61,18 @@ class FBankTransaction extends CakeEntity
 
 	public FSubjectBank $fSubjectBank;
 
+	/**
+	 * @var FCurrency currency code
+	 */
+	public FCurrency $fCurrency;
+
 
 	/**
 	 * @var callable
 	 */
 	protected $exchangeRateCallback;
 
-	/**
-	 * Ručně se musí dodat
-	 * @var FCurrency
-	 */
-	public FCurrency $fCurrency;
+
 
 	public static function getModelClass(): string
 	{
@@ -102,7 +103,7 @@ class FBankTransaction extends CakeEntity
 
 		$date = min($this->date, new DateTime('yesterday'));
 
-		return ($this->exchangeRateCallback)($date, $this->currency, FInvoice::DefaultCurrencyCode);
+		return ($this->exchangeRateCallback)($date, $this->fCurrency->id, FInvoice::DefaultCurrencyId);
 	}
 
 	/**

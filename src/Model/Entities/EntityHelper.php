@@ -34,6 +34,8 @@ class EntityHelper
 	public static function appendFromDbArray(CakeEntity $entity, array $data)
 	{
 		$entityClass = get_class($entity);
+		$modelClass = $entityClass::getModelClass();
+		$data = $data[$modelClass] ?? $data;
 		foreach ($data as $column => $value) {
 			$columnProperty = static::getColumnPropertiesByColumn($entityClass)[$column] ?? null;
 			if ( ! $columnProperty) {

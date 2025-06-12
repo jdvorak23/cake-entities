@@ -85,13 +85,13 @@ class MoneyTransaction extends CakeEntity
 
 	public function getExchangeRate(): ?ExchangeRate
 	{
-		if ($this->fCurrency->code === FInvoice::DefaultCurrencyCode) {
+		if ($this->fCurrencyId === FInvoice::DefaultCurrencyId) {
 			return null;
 		}
 
 		$date = min($this->date, new DateTime('yesterday'));
 
-		return ($this->exchangeRateCallback)($date, $this->fCurrency->code, FInvoice::DefaultCurrencyCode);
+		return ($this->exchangeRateCallback)($date, $this->fCurrencyId, FInvoice::DefaultCurrencyId);
 	}
 
 	/**

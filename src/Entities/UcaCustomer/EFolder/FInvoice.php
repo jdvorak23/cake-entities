@@ -13,6 +13,9 @@ class FInvoice extends CakeEntity
 	 */
 	const DefaultCurrencyCode = 'CZK';
 
+	const DefaultCurrencyId = 1;
+
+
 	public int $id;
 
 	public int $fCurrencyId;
@@ -209,7 +212,7 @@ class FInvoice extends CakeEntity
 
 	public function getExchangeRate(): ?ExchangeRate
 	{
-		if ($this->fCurrency->code === static::DefaultCurrencyCode) {
+		if ($this->fCurrencyId === static::DefaultCurrencyId) {
 			return null;
 		}
 		// TODO toto je pouze pro testování, aby vůbec šlo vytvářet, musí se smazat!
@@ -221,7 +224,7 @@ class FInvoice extends CakeEntity
 			$date = $this->issued;
 		}
 		// TODO vše mezi smazat!
-		return ($this->exchangeRateCallback)($date, $this->fCurrency->code, static::DefaultCurrencyCode);
+		return ($this->exchangeRateCallback)($date, $this->fCurrencyId, static::DefaultCurrencyId);
 	}
 
 	public function getTotalInDefaultCurrency(): float

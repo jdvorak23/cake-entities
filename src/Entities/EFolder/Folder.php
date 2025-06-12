@@ -48,27 +48,19 @@ class Folder extends CakeEntity
 	 */
 	public array $moneyTransactions;
 
-
-	/**
-	 * Doplňuje se ručně
-	 * První klíč je číslo rezervace a obsahuje všechny fBankTransactions (s klíčem (druhým) id)
-	 * @var FBankTransaction[][]
-	 */
-	public array $fBankTransactions;
-
 	/**
 	 * @var callable
 	 */
-	protected $exchangeRateCallback;
+	//protected $exchangeRateCallback;
 
 	/**
 	 * @param callable $exchangeRateCallback
 	 * @return void
 	 */
-	public function setExchangeRateCallback(callable $exchangeRateCallback)
+	/*public function setExchangeRateCallback(callable $exchangeRateCallback)
 	{
 		$this->exchangeRateCallback = $exchangeRateCallback;
-	}
+	}*/
 
 
 	public static function getModelClass(): string

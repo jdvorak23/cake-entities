@@ -76,16 +76,15 @@ class Contract extends CakeEntity
 	public array $contractServices;
 
 	/**
+	 * @var FCurrency paymentCurrency code
+	 */
+	public FCurrency $fPaymentCurrency;
+
+	/**
 	 * Musí se ručně doplnit, vytváří PriceHelper::getAmadeusPaymenSchedule()
 	 * @var array
 	 */
 	public array $paymentSchedules;
-
-	/**
-	 * Ručně se musí dodat
-	 * @var FCurrency
-	 */
-	public FCurrency $fPaymentCurrency;
 
 	public static function getModelClass(): string
 	{

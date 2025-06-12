@@ -2,10 +2,6 @@
 
 namespace Cesys\CakeEntities\Entities\UcaCustomer;
 
-use Cesys\CakeEntities\Entities\EFolder\ExchangeRate;
-use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FCurrency;
-use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FInvoice;
-use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FSubjectBank;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Nette\Utils\DateTime;
 

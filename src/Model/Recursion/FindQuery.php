@@ -4,7 +4,6 @@ namespace Cesys\CakeEntities\Model\Recursion;
 
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Cesys\CakeEntities\Model\Entities\EntityHelper;
-use Cesys\CakeEntities\Model\Find\Conditions;
 use Cesys\CakeEntities\Model\Find\Contains;
 
 /**
