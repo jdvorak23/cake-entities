@@ -82,17 +82,17 @@ class Params
 
 	public function getConditions(): Conditions
 	{
-		if ( ! isset($this->conditions)) {
-			$this->conditions = new Conditions();
-		}
-
-		return $this->conditions;
+		return $this->conditions ??= new Conditions();
 	}
 
 	public function isEqualTo(self $params): bool
 	{
 		foreach (Reflection::getReflectionPropertiesOfClass(static::class) as $property) {
 			if ($property->getName() === 'conditions') {
+				continue;
+			}
+			if ($property->getName() === 'fields') {
+				// Dělá problémy, fields defaultne nastavene takze ok
 				continue;
 			}
 			// ??&& empty($params->{$property->getName()}[0]

@@ -4,7 +4,10 @@ namespace Cesys\CakeEntities\Model\Recursion;
 
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Cesys\CakeEntities\Model\Entities\EntityHelper;
+use Cesys\CakeEntities\Model\Find\Cache;
 use Cesys\CakeEntities\Model\Find\Contains;
+use Cesys\CakeEntities\Model\Find\EntityCache;
+use Cesys\CakeEntities\Model\Find\Stash;
 
 /**
  * @internal
@@ -18,22 +21,24 @@ class FindQuery extends Query
 	 */
 	public array $activeContains = [];
 
-	public array $cache = [];
-
-	public array $callbacks = [];
+	public Cache $cache;
 
 	private bool $isFirstSystem;
 
 	public function __construct(array $fullContains, bool $isFirstSystem)
 	{
+		bdump($fullContains);
 		$this->contains = Contains::create($fullContains);
 		$this->isFirstSystem = $isFirstSystem;
+		$this->cache = new Cache();
+		bdump($this->contains);
 	}
 
 	public function findStart(string $modelClass)
     {
 		$this->start($modelClass);
-		$this->getFullContains();
+		// Volání $this->getFullContains() zároveň musí být pro init
+		$this->cache->setCache($this->getFullContains());
     }
 
     public function findEnd(): bool
@@ -47,121 +52,56 @@ class FindQuery extends Query
 		return ! $this->isOriginalCall() || $this->isFirstSystem;
 	}
 
-
-	public function cacheEntity(CakeEntity $entity, bool $doOtherIndexes = true)
+	public function isRecursiveToSelf(?Contains $contains = null): bool
 	{
-		// index na id
-		$idColumnProperty = EntityHelper::getColumnProperties(get_class($entity))[$entity::getPrimaryPropertyName()];
-		$this->setCache($idColumnProperty->column, $entity);
-
-		if ( ! $doOtherIndexes ) {
-			return;
-		}
-
-		$columns = $this->getCache();
-		// Index na id už máme
-		unset($columns[$idColumnProperty->column]);
-
-		foreach (array_keys($columns) as $column) {
-			$this->indexEntity($entity, $column);
-		}
-
-	}
-
-
-
-	public  function getCacheIndex(): int
-	{
-		return spl_object_id($this->getFullContains());
-	}
-
-	public function getCache(?string $column = null): ?array
-	{
-		$cache = $this->cache[$this->getCurrentModelClass()][$this->getCacheIndex()] ?? null;
-		if  ($cache === null) {
-			return null;
-		}
-		if ($column === null) {
-			return $cache;
-		}
-		return $cache[$column] ?? null;
-	}
-
-	public function setCache(string $column, $keyValue = null, $value = null): void
-	{
-		if ($keyValue === null) {
-			$this->cache[$this->getCurrentModelClass()][$this->getCacheIndex()][$column] = [];
-			return;
-		}
-		if ($keyValue instanceof CakeEntity) {
-			$value = $keyValue;
-			$keyValue = $value->getPrimary();
-		}
-		if ($column === $this->getPrimaryCacheColumn()) {
-			$this->cache[$this->getCurrentModelClass()][$this->getCacheIndex()][$column][$keyValue] = $value;
-		} elseif ($value === null)  {
-			$this->cache[$this->getCurrentModelClass()][$this->getCacheIndex()][$column][$keyValue] = [];
-		} else {
-			$this->cache[$this->getCurrentModelClass()][$this->getCacheIndex()][$column][$keyValue][$value->getPrimary()] = $value;
-		}
-
-	}
-
-
-
-	public function addIndex(string $column): bool
-	{
-		if ($this->getCache($column) === null) {
-			$this->setCache($column);
-			if ($column !== $this->getPrimaryCacheColumn()) {
-				return true;
-			}
-			if (count($this->cache[$this->getCurrentModelClass()]) > 1) {
-				$caches = $this->cache[$this->getCurrentModelClass()];
-				array_pop($caches);
-				foreach ($caches as $cache) {
-					foreach ($cache['id'] ?? [] as $entity) {
-						$this->cacheEntity($entity, false);
-					}
-				}
-			}
+		$contains = $contains ?? $this->getFullContains();
+		if (isset($contains->contains[$contains->modelClass])) {
+			// Rekurze do vl. tabulky
 			return true;
 		}
 
 		return false;
 	}
 
-	public function indexEntities(string $column) // ne id
+	public function isRecursionToSelfEndless(?Contains $contains = null): bool
 	{
-		foreach ($this->getCache($this->getPrimaryCacheColumn()) as $entity) {
-			if ( ! $entity) {
-				continue;
-			}
-			$this->indexEntity($entity, $column);
+		$contains = $contains ?? $this->getFullContains();
+		static $query;
+		static $pathCache;
+		if ( ! isset($query)) {
+			$query = new Query();
+			$query->onEnd[] = function () use (&$query) {
+				$query = null;
+			};
+			$pathCache = [];
 		}
-	}
+		$query->start($contains->modelClass);
+
+		if (isset($pathCache[$contains->getId()])) {
+			$query->end();
+			return true;
+		}
+		$pathCache[$contains->getId()] = true;
 
 
-
-	public function getPrimaryCacheColumn()
-	{
-		return array_key_first($this->getCache());
-	}
-
-
-
-
-
-	private function indexEntity(CakeEntity $entity, string $column)
-	{
-		$columnProperty = EntityHelper::getColumnPropertiesByColumn(get_class($entity))[$column];
-		$value = $columnProperty->property->getValue($entity);
-		if ($value === null) {
-			// nully nejsou v indexu
-			return;
+		if (empty($contains->contains[$contains->modelClass])) {
+			$query->end();
+			return false;
 		}
 
-		$this->cache[$entity::getModelClass()][$this->getCacheIndex()][$column][$value][$entity->getPrimary()] = $entity;
+		$return = $this->isRecursionToSelfEndless($contains->contains[$contains->modelClass]);
+		$query->end();
+		return $return;
+	}
+
+	public function getEntityCache(?Contains $contains = null): EntityCache
+	{
+		return $this->cache->getCache($contains ?? $this->getFullContains());
+	}
+
+	public function getStash(?Contains $contains = null): Stash
+	{
+		return $this->cache->getStash($contains ?? $this->getFullContains());
 	}
 
 
@@ -185,10 +125,6 @@ class FindQuery extends Query
 		return $contains;
 	}
 
-/*	public function ()
-	{
-
-	}*/
 
 	public function getBackwardContains()
 	{
@@ -200,7 +136,7 @@ class FindQuery extends Query
 				continue;
 			}*/
 			foreach ($contains->contains as $modelContains) {
-				if ($modelContains->modelClass === $interestedModel && $this->getCacheIndex() === spl_object_id($modelContains)) {
+				if ($modelContains->modelClass === $interestedModel && $this->getFullContains() === $modelContains) {
 					$result[] = $modelClass;
 				}
 			}

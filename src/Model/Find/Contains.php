@@ -20,6 +20,11 @@ class Contains
 		$this->modelClass = $modelClass;
 	}
 
+	public function getId(): int
+	{
+		return spl_object_id($this);
+	}
+
 	public static function create(array $contains): self
 	{
 		if (count($contains) !== 1) {
@@ -30,10 +35,7 @@ class Contains
 
 		static $query;
 		static $pathCache;
-		/**
-		 *
-		 * @var static[][] $modelsContains
-		 */
+		/** @var static[][] $modelsContains */
 		static $modelsContains;
 		if ( ! isset($query)) {
 			$query = new Query();
@@ -49,13 +51,13 @@ class Contains
 		}
 
 		$pathCache[] = $instance = new self($modelClass);
+		$params = $contains[$modelClass];
+		unset($params['contains']);
+		$instance->params = Params::create($params);
 
 		foreach ($contains[$modelClass]['contains'] as $containedModelClass => $modelContains) {
 			$instance->contains[$containedModelClass] = self::create([$containedModelClass => $modelContains]);
 		}
-
-		unset($contains[$modelClass]['contains']);
-		$instance->params = Params::create($contains[$modelClass]);
 
 		$foundSimilar = false;
 		if (isset($modelsContains[$modelClass])) {
@@ -67,11 +69,10 @@ class Contains
 				}
 			}
 		}
+
 		if ( ! $foundSimilar) {
 			$modelsContains[$modelClass][] = $instance;
 		}
-
-
 
 		array_pop($pathCache);
 		if ($query->end()) {
@@ -81,7 +82,7 @@ class Contains
 		return $instance;
 	}
 
-	public function getContains(): ?array
+	/*public function getContains(): ?array
 	{
 		return $this->toArray()['contains'];
 	}
@@ -114,7 +115,7 @@ class Contains
 		}
 
 		return $params;
-	}
+	}*/
 
 	/**
 	 * @param Contains $contains
@@ -122,11 +123,30 @@ class Contains
 	 */
 	public function isEqualTo(self $contains): bool
 	{
+		static $query;
+		static $pathCache;
+		if ( ! isset($query)) {
+			$query = new Query();
+			$query->onEnd[] = function () use (&$query) {
+				$query = null;
+			};
+			$pathCache = [];
+		}
+		$query->start($contains->modelClass);
+
+		if (isset($pathCache[$contains->getId()])) {
+			$query->end();
+			return true;
+		}
+		$pathCache[$contains->getId()] = true;
+
 		if ($this->modelClass !== $contains->modelClass) {
+			$query->end();
 			return false;
 		}
 
 		if ( ! $this->params->isEqualTo($contains->params)) {
+			$query->end();
 			return false;
 		}
 
@@ -134,15 +154,18 @@ class Contains
 			count($this->contains) !== count($contains->contains)
 			|| array_diff_key($this->contains, $contains->contains)
 		) {
+			$query->end();
 			return false;
 		}
 
 		foreach ($this->contains as $modelClass => $modelContains) {
 			if ( ! $modelContains->isEqualTo($contains->contains[$modelClass])) {
+				$query->end();
 				return false;
 			}
 		}
 
+		$query->end();
 		return true;
 	}
 

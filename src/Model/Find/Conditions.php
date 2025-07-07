@@ -58,7 +58,7 @@ class Conditions
 		foreach ($this->keyConditions as $key => $condition) {
 			$params[$key] = $condition;
 		}
-		if ($this->or) {
+		if ($this->or && ! $this->or->isEmpty()) {
 			$params['OR'] = $this->or->toArray();
 		}
 		if ($this->and) {
@@ -78,16 +78,19 @@ class Conditions
 		return $params;
 	}
 
+	public function getOr(): self
+	{
+		return $this->or ??= new static();
+	}
+
 	public function addOrCondition(string $column, $value)
 	{
-		if ( ! isset($this->or)) {
-			$this->or = new Conditions();
+		$or = $this->getOr();
+		if ( ! isset($or->keyConditions[$column])) {
+			$or->keyConditions[$column] = [];
 		}
-		if ( ! isset($this->or->keyConditions[$column])) {
-			$this->or->keyConditions[$column] = [];
-		}
-		if ( ! in_array($value, $this->or->keyConditions[$column], true)) {
-			$this->or->keyConditions[$column][] = $value;
+		if ( ! in_array($value, $or->keyConditions[$column], true)) { // todo strict?
+			$or->keyConditions[$column][] = $value;
 		}
 	}
 
@@ -98,6 +101,6 @@ class Conditions
 			&& empty($this->innerConditions)
 			&& ($this->or === null || $this->or->isEmpty())
 			&& ($this->and === null || $this->and->isEmpty())
-			&& ($this->not === null || $this->not->isEmpty());
+			&& ($this->not === null || $this->not->isEmpty());// todo chujovina asi, ale jen pro systemove
 	}
 }

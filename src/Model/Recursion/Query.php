@@ -2,11 +2,15 @@
 
 namespace Cesys\CakeEntities\Model\Recursion;
 
+use Cesys\Utils\Arrays;
+
 class Query
 {
 	public array $path = [];
 
 	public array $activePath = [];
+
+	public array $onEnd = [];
 
 
 	public function start(string $modelClass)
@@ -19,7 +23,12 @@ class Query
 	public function end(): bool
 	{
 		array_pop($this->activePath);
-		return ! $this->activePath;
+		$isEnd = ! $this->activePath;
+		if ($isEnd) {
+			Arrays::invoke($this->onEnd);
+		}
+
+		return $isEnd;
 	}
 
 

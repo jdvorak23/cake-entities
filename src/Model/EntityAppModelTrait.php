@@ -47,12 +47,6 @@ trait EntityAppModelTrait
 	protected $fetchedAll = false;
 
     /**
-     * Třída entity odpovídající modelu
-     * @var string
-     */
-    protected string $entityClass;
-
-    /**
      * Cache fetchnutých / uložených entit
      * @var array
      */
@@ -74,31 +68,6 @@ trait EntityAppModelTrait
 
 	private array $fields;
 
-    /**
-     * Pro interní cachování při volání findEntities
-     * @var array
-     */
-    private array $findCache = [];
-
-    /**
-     * Pro interní cachování při volání findEntities
-     * @var array
-     */
-    private array $foundByColumn = [];
-
-
-    /**
-     * Pro interní cachování při volání findEntities
-     * @var array
-     */
-    private array $modelConditions = [];
-
-    /**
-     * @var int[]
-     */
-    private array $recursionCounters = [];
-
-    private static array $recursionVisits = [];
 
 
 
@@ -273,8 +242,8 @@ trait EntityAppModelTrait
         $debugBacktrace = debug_backtrace(!DEBUG_BACKTRACE_PROVIDE_OBJECT|DEBUG_BACKTRACE_IGNORE_ARGS,3);
 		//bdump($debugBacktrace[2]['function']);
         if (
-            in_array($debugBacktrace[1]['function'], ['addOtherEntities', 'addSameEntities', 'buildSqlSubquery', 'appendSameEntities'])
-            || in_array($debugBacktrace[2]['function'], ['addOtherEntities', 'addSameEntities', 'appendSameEntities'])
+            in_array($debugBacktrace[1]['function'], ['addOtherEntities', 'addSameEntities', 'addSameEntitiesRecursive','buildSqlSubquery', 'appendSameEntities'])
+            || in_array($debugBacktrace[2]['function'], ['addOtherEntities', 'addSameEntities', 'addSameEntitiesRecursive', 'appendSameEntities'])
 			|| ($debugBacktrace[1]['function'] === $debugBacktrace[2]['function'] && $debugBacktrace[1]['function'] === 'findEntities')
         ) {
 			return self::$findQueries[array_key_last(self::$findQueries)];
@@ -311,14 +280,17 @@ trait EntityAppModelTrait
         if ( ! $findQuery = $this->getFindQuery()) {
 			// Nové volání, inicializace FindQuery
 			$fullContains = $this->getFullContains($contains, true);
-			$isSystem = debug_backtrace(!DEBUG_BACKTRACE_PROVIDE_OBJECT|DEBUG_BACKTRACE_IGNORE_ARGS,2)[1]['function'] === 'getEntities';
+			$isSystem = debug_backtrace(! DEBUG_BACKTRACE_PROVIDE_OBJECT|DEBUG_BACKTRACE_IGNORE_ARGS,2)[1]['function'] === 'getEntities';
 			$findQuery = $this->createFindQuery($fullContains, $isSystem);
+			//bdump($this->schema());
 		}
 
+
 		$findQuery->findStart(static::class);
+
 		$fullContains = $findQuery->getFullContains();
 
-		if (count($findQuery->activePath) > 10) { // TODO
+		if (count($findQuery->activePath) > 50) { // TODO
 			bdump("DOPICICI");
 			$findQuery->findEnd();
 			return [];
@@ -335,8 +307,7 @@ trait EntityAppModelTrait
 		// Params jsou vždy všechny co jsou na entitě, jinak psycho
 		$fullContains->params->setFields($this->getFields());
 
-
-		if ( ! $findQuery->isOriginalCall()) {
+		if ($findQuery->isSystemCall()) {
 			// todo system
 			// K prvnímu volání nemůžeme přiřazovat entity, params můžou být různorodé, nevíme potom na konci jaké entity vrátit a order
 			if ($fullContains->contains) {
@@ -349,32 +320,30 @@ trait EntityAppModelTrait
 		}
 
 		//bdump($this->buildSqlSubquery());
-
-		$findQuery->addIndex($this->primaryKey);
-		if ( ! $findQuery->isOriginalCall() && $fullContains->params->getConditions()->or) {
-			// todo system
+		//bdump($fullContains->params->getConditions());
+		if ($findQuery->isSystemCall() && ! $fullContains->params->getConditions()->getOr()->isEmpty()) {
+			// Uživatelovo volání neupravujeme, projdeme OR, pokud jsou
 			// Projdeme všechny OR conditions sloupce
-			$columnsToReindex = [];
-			foreach ($fullContains->params->getConditions()->or->keyConditions as $column => $values) {
-				if ($findQuery->addIndex($column)) {
-					$columnsToReindex[] = $column;
-				}
-				$indexCache = $findQuery->getCache($column);
+		//	$columnsToReindex = [];
+			foreach ($fullContains->params->getConditions()->getOr()->keyConditions as $column => $values) {
+				$entityCache = $findQuery->getEntityCache();
+				bdump($entityCache);
+				$entityCache->addIndex($column);
 				foreach ($values as $key => $id) {
-					if (array_key_exists($id, $indexCache)) {
-						unset($fullContains->params->getConditions()->or->keyConditions[$column][$key]);
-					} else {
-						$findQuery->setCache($column, $id);
+					if ( ! $entityCache->startIndexValue($column, $id)) {
+						unset($fullContains->params->getConditions()->getOr()->keyConditions[$column][$key]);
 					}
 				}
-				if ( ! $fullContains->params->getConditions()->or->keyConditions[$column]) {
-					unset($fullContains->params->getConditions()->or->keyConditions[$column]);
+				if ( ! $fullContains->params->getConditions()->getOr()->keyConditions[$column]) {
+					unset($fullContains->params->getConditions()->getOr()->keyConditions[$column]);
 				}
 			}
+			//bdump($fullContains->params->getConditions());
 
-			foreach ($columnsToReindex as $column) {
+			/*foreach ($columnsToReindex as $column) {
+				// todo neni treba
 				$findQuery->indexEntities($column);
-			}
+			}*/
 		}
 
 
@@ -383,14 +352,14 @@ trait EntityAppModelTrait
 			isset($fullContains->contains[static::class])
 			&& ! $fullContains->params->getConditions()->stringConditions
 			&& ! $fullContains->params->getConditions()->isEmpty()
-			&& ! $findQuery->isOriginalCall()
+			&& $findQuery->isSystemCall()
 			&& ! $this->isStatic
 		) {
 			// Řešíme rekurzi do vlastní tabulky, ale ne tu, kde už je to v conditions
 			$relatedContains = $fullContains->contains[static::class];
 			if ($fullContains === $relatedContains) {
 				// Stejné contains a systémové -> přidáme sql na rekurzi do vl. tabulky
-				$this->addSameEntities([], $useCache, true);
+				$this->addSameEntitiesRecursive([], $useCache, true);
 				/*$this->addSameEntities($entities, $useCache);
 				if ( ! $relatedContains->params->getConditions()->isEmpty()) {
 					$this->findEntities([], [], $useCache);
@@ -404,7 +373,7 @@ trait EntityAppModelTrait
 		if ($this->isStatic) {
 			if ($this->fetchedAll !== false) {
 				foreach ($this->fetchedAll as $entity) {
-					$findQuery->cacheEntity($entity);
+					$findQuery->getEntityCache()->add($entity);
 				}
 			} else {
 				$this->fetchedAll = [];
@@ -415,7 +384,7 @@ trait EntityAppModelTrait
 					$entity = $this->createEntity($entityData);
 					$this->entities[$entity->getPrimary()] = $entity;
 					$this->fetchedAll[$entity->getPrimary()] = $entity;
-					$findQuery->cacheEntity($entity);
+					$findQuery->getEntityCache()->add($entity);
 				}
 				$this->appendSameEntities();
 			}
@@ -438,15 +407,16 @@ trait EntityAppModelTrait
 		}
 
 		if ( ! $this->isStatic
-			&& ($findQuery->isOriginalCall() || ! $fullContains->params->getConditions()->isEmpty())) {
-			// První volání, nebo když je neco v conditions
+			&& ( ! $findQuery->isSystemCall() || ! $fullContains->params->getConditions()->isEmpty())) {
+			// Uživatelovo volání, nebo když je neco v conditions
 			$entitiesData = $this->find('all', $fullContains->params->toArray());
-			$cache = $findQuery->getCache($this->primaryKey);
+			$allPrim = [];
 			foreach ($entitiesData as $entityData) {
 				$primary = $entityData[$this->alias][$this->primaryKey];
-				if (isset($cache[$primary])) {
+				$allPrim[] = $primary;
+				if (isset($findQuery->getStash()->getCache()[$primary])) {
 					// Pokud je fetchnuta znova entita, která už je v cache, nepřepisuje se!
-					$entity = $cache[$primary];
+					$entity = $findQuery->getStash()->getCache()[$primary];
 				} else {
 					$entity = $this->createEntity($entityData);
 					$this->entities[$entity->getPrimary()] = $entity;
@@ -454,18 +424,13 @@ trait EntityAppModelTrait
 
 				$entities[$entity->getPrimary()] = $entity;
 				// Takto se ujistíme, že i když entita tam už je, že bude na všech indexech
-				$findQuery->cacheEntity($entity, ! $findQuery->isOriginalCall());
+				$findQuery->getEntityCache()->add($entity);
 			}
+			//bdump($allPrim);
 		}
 
-		// Přiřazení Other přes callbacky
-		if (isset($findQuery->callbacks[static::class])) {
-			Arrays::invoke($findQuery->callbacks[static::class]);
-			unset($findQuery->callbacks[static::class]);
-		}
-
-		if ( ! $findQuery->isOriginalCall() && $fullContains->params->getConditions()->stringConditions) {
-			// Jsme voláni vlastním modelem pro rekurzi do vlastní tabulky
+		if ($findQuery->isSystemCall() && $fullContains->params->getConditions()->stringConditions) {
+			// Bylo volání WITH RECURSIVE
 			// Přiřazení všeho
 			$this->appendSameEntities();
 		}
@@ -475,27 +440,36 @@ trait EntityAppModelTrait
 			$fullContains->params->clear();
 		}
 
-
-		if (isset($fullContains->contains[static::class]) && ! $this->isStatic) {
+bdump($findQuery->isRecursiveToSelf());
+		if ($findQuery->isRecursiveToSelf() && ! $this->isStatic) {
 			// Řešíme rekurzi do vlastní tabulky
 			$relatedContains = $fullContains->contains[static::class];
-			if ($fullContains !== $relatedContains || $findQuery->isOriginalCall()) {
-				// Jsou jiné contains, nebo jsme v prvním volání, kde se před find nedoplňují
-				$this->addSameEntities($entities, $useCache);
+
+			if ($findQuery->isRecursionToSelfEndless()) {
+				if ( ! $findQuery->isSystemCall()) {
+					// První volání, kde se před find nedoplňují RECURSIVE && nekonečné contains => chceme RECURSIVE
+					$this->addSameEntitiesRecursive($entities, $useCache);
+					if ( ! $relatedContains->params->getConditions()->isEmpty()) {
+						$this->findEntities([], [], $useCache);
+					}
+				}
+			} else {
+				// Jsou konečné contains, pouze flat
+				$this->addSameEntities($entities);
 				if ( ! $relatedContains->params->getConditions()->isEmpty()) {
 					$this->findEntities([], [], $useCache);
 				}
 			}
-
+			// todo první volání a stejné contains -> připojit
 		}
 
 
 
         // Nalezení entit ve vlastní tabulce (přes nějaké parent_id)
         //$allEntities = $this->addSameEntities($entities, $useCache);
-		$allEntities = $entities;
         // Připojení entit z ostatních tabulek
-        $this->addOtherEntities($allEntities, $useCache);
+        $this->addOtherEntities($entities, $useCache);
+		bdump($fullContains->contains);
 		foreach ($fullContains->contains as $modelClass => $modelContains) {
 			if ($modelContains->params->getConditions()->isEmpty()) {
 				continue;
@@ -507,7 +481,7 @@ trait EntityAppModelTrait
 
 
         if ($findQuery->findEnd()) {
-//            bdump($findQuery, static::class);
+            bdump($findQuery, static::class);
 			array_pop(self::$findQueries);
             return $entities;
         }
@@ -667,25 +641,28 @@ trait EntityAppModelTrait
 	/**
 	 * @return ColumnProperty[]
 	 */
-	public function &getColumnProperties(): array
+	public function &getColumnProperties(bool $byColumn = false): array
 	{
-		// Třída entity modelu se může změnit todo ne
-		$entityClass = static::getEntityClass();
-		if (isset($this->columnProperties[$entityClass])) {
-			return $this->columnProperties[$entityClass];
+		$index = $byColumn ? 'column' : 'property';
+		if (isset($this->columnProperties)) {
+			return $this->columnProperties[$index];
 		}
 
-		$this->columnProperties[$entityClass] = [];
-		foreach(EntityHelper::getColumnProperties($entityClass) as $columnProperty) {
+		$this->columnProperties = [
+			'column' => [],
+			'property' => [],
+		];
+		foreach(EntityHelper::getColumnProperties(static::getEntityClass()) as $columnProperty) {
 			if ($columnSchema = $this->schema($columnProperty->column)) {
 				if ($columnSchema['type'] === 'date') {
 					$columnProperty->isDateOnly = true;
 				}
-				$this->columnProperties[$entityClass][$columnProperty->propertyName] = $columnProperty;
+				$this->columnProperties['column'][$columnProperty->column] = $columnProperty;
+				$this->columnProperties['property'][$columnProperty->propertyName] = $columnProperty;
 			}
 		}
 
-		return $this->columnProperties[$entityClass];
+		return $this->columnProperties[$index];
 	}
 
 
@@ -722,12 +699,99 @@ trait EntityAppModelTrait
     }
 
 
+	private function addSameEntities(array $entities): void
+	{
+		$findQuery = $this->getFindQuery();
+		if ( ! $entities) {
+			return;
+		}
+
+		if ( ! array_key_exists(static::class, $findQuery->getFullContains()->contains)) {
+			return;
+		}
+
+		// Najdeme modelovo contains
+		$modelContains = $findQuery->getFullContains([static::class]);
+		/*bdump($findQuery->getFullContains()->params->isEqualTo($modelContains->params), "PIIIDID");
+		bdump($findQuery->getFullContains()->params);
+		bdump($modelContains->params);*/
+		if ($relatedModelContains = $modelContains->contains[static::class] ?? null) {
+
+		}
+		foreach (EntityHelper::getPropertiesOfSelfEntities(static::getEntityClass()) as $relatedProperty) {
+			$keyPropertyName = $relatedProperty->columnProperty->propertyName;
+			// Vazební sloupec
+			$relatedColumn = $relatedProperty->relatedColumnProperty->column;
+			if ($relatedProperty->property->getType()->getName() === 'array') {
+				foreach ($entities as $entity) {
+					if ($relatedProperty->property->isInitialized($entity)) {
+						continue;
+					}
+					$relatedProperty->property->setValue($entity, []);
+					if (isset($entity->{$keyPropertyName})) {
+						// Spojovací klíč má hodnotu
+						$value = $entity->{$keyPropertyName};
+						// Přidáme do conditions
+						$modelContains->params->getConditions()->addOrCondition($relatedColumn, $value);
+						$findQuery->getEntityCache($modelContains)->setOnAdd($relatedColumn, $value, false, function (CakeEntity $otherEntity) use ($relatedProperty, $entity) {
+							$entity->{$relatedProperty->property->getName()}[$otherEntity->getPrimary()] = $otherEntity;
+						});
+					}
+				}
+			} else {
+				foreach ($entities as $entity) {
+					if ($relatedProperty->property->isInitialized($entity)) {
+						continue;
+					}
+					if ($relatedProperty->property->getType()->allowsNull()) {
+						$relatedProperty->property->setValue($entity, null);
+					}
+					if (isset($entity->{$keyPropertyName})) {
+						// Spojovací klíč má hodnotu // todo teoreticky datum, takze spis hodnotu sloupce nejak
+						$value = $entity->{$keyPropertyName};
+						// Přidáme do conditions
+						$modelContains->params->getConditions()->addOrCondition($relatedColumn, $value);
+
+						$findQuery->getEntityCache($modelContains)->setOnAdd($relatedColumn, $value, true, function (CakeEntity $otherEntity) use ($relatedProperty, $entity) {
+							$relatedProperty->property->setValue($entity, $otherEntity);
+							// Zůstane unset, pokud není nullable a append je null. Může se pak asi točit - performance?
+						});
+
+
+						if ( ! $relatedModelContains = $modelContains->contains[static::class] ?? null) {
+							continue;
+						}
+						if ( ! $relatedModelContains) {
+							continue;
+						}
+
+						bdump("coj");
+						bdump($value, $relatedColumn);
+						bdump($modelContains->contains);
+
+						foreach (EntityHelper::getPropertiesOfSelfEntities(static::getEntityClass()) as $relatedEntityRelatedProperty) {
+							if ($relatedEntityRelatedProperty->columnProperty->column === $relatedColumn) {
+								bdump($relatedEntityRelatedProperty, "ANO");
+								$relatedModelContains = $modelContains->contains[static::class];
+								$modelContains->params->getConditions()->addOrCondition($relatedEntityRelatedProperty->relatedColumnProperty->column, $value);
+							} else {
+								bdump("NE");
+							}
+						}
+
+					}
+				}
+			}
+		}
+	}
+
+
     /**
      * @param E[] $entities
      * @param bool $useCache
      * @return void
      */
-    private function addSameEntities(array $entities, bool $useCache, bool $fromSubQuery = false): void
+    private function addSameEntitiesRecursive(array $entities, bool $useCache, bool $fromSubQuery = false): void
     {
 		$findQuery = $this->getFindQuery();
 		if ($fromSubQuery) {
@@ -801,8 +865,8 @@ trait EntityAppModelTrait
 		$subquery = null;
 		if ($fromSubQuery) {
 			$conditions = $findQuery->getFullContains()->params->getConditions();
-			if (count($conditions->or->keyConditions) === 1 && isset($conditions->or->keyConditions[$this->primaryKey])) {
-				$idsToFetch = $conditions->or->keyConditions[$this->primaryKey];
+			if (count($conditions->getOr()->keyConditions) === 1 && isset($conditions->getOr()->keyConditions[$this->primaryKey])) {
+				$idsToFetch = $conditions->getOr()->keyConditions[$this->primaryKey];
 			} else {
 				$subquery = $this->buildSqlSubquery();
 				$sql .= "
@@ -858,14 +922,14 @@ trait EntityAppModelTrait
 		if ($fromSubQuery) {
 			$findQuery->getFullContains()->params->conditions = null;
 			// Tyto už máme
-			if ($not = $findQuery->getCache()[$this->primaryKey]) {
+			if ($not = $findQuery->getStash()->getCache()) {
 				$findQuery->getFullContains()->params->getConditions()->not = Conditions::create([$this->primaryKey => array_keys($not)]);
 			}
 			$findQuery->getFullContains()->params->getConditions()->stringConditions[] = "$this->primaryKey IN ($sql)";
 			return;
 		}
 		// Tyto už máme
-		if ($not = $findQuery->getCache()[$this->primaryKey]) {
+		if ($not = $findQuery->getStash()->getCache()) {
 			$findQuery->getFullContains([static::class])->params->getConditions()->not = Conditions::create([$this->primaryKey => array_keys($not)]);
 		}
 		$findQuery->getFullContains([static::class])->params->getConditions()->stringConditions[] = "$this->primaryKey IN ($sql)";
@@ -874,16 +938,20 @@ trait EntityAppModelTrait
 	private function appendSameEntities()
 	{
 		$findQuery = $this->getFindQuery();
-		if ( ! $entities = $findQuery->getCache($this->primaryKey)) {
+		$entityCache = $findQuery->getEntityCache();
+		if ( ! $entities = $entityCache->getEntitiesByPrimary()) {
 			return;
 		}
+		bdump($entities);
+		bdump($findQuery);
+		exit;
 
 		foreach (EntityHelper::getPropertiesOfSelfEntities(static::getEntityClass()) as $relatedProperty) {
 			$keyPropertyName = $relatedProperty->columnProperty->propertyName;
 			$relatedColumn = $relatedProperty->relatedColumnProperty->column;
-			if ($relatedColumn !== $this->primaryKey && $findQuery->addIndex($relatedColumn)) {
+			if ($entityCache->addIndex($relatedColumn)) {
 				// Musíme naindexovat, pokud spojujeme jinam nez na id
-				$findQuery->indexEntities($relatedColumn);
+				$entityCache->indexEntities($relatedColumn);
 			}
 
 			foreach ($entities as $entity) {
@@ -903,25 +971,13 @@ trait EntityAppModelTrait
 				$value = EntityHelper::getPropertyDbValue($entity, $relatedProperty->columnProperty);
 
 				if ($relatedProperty->property->getType()->getName() === 'array') {
-					$otherEntity = $findQuery->getCache($relatedColumn)[$value] ?? [];
-					if (is_array($otherEntity)) {
-						$relatedProperty->property->setValue($entity, $otherEntity);
-					} else {
-						$relatedProperty->property->setValue($entity, [$otherEntity]);
-					}
+					$relatedProperty->property->setValue($entity, $entityCache->getEntities($value, $relatedColumn));
 				} else {
-					if (array_key_exists($value, $findQuery->getCache($relatedColumn))) {
-						$otherEntity = $findQuery->getCache($relatedColumn)[$value];
-						if ( ! $otherEntity) {
-							// null nebo prázdné pole
-						} elseif (is_array($otherEntity)) {
-							$relatedProperty->property->setValue($entity, current($otherEntity));
-							continue;
-						} else {
-							$relatedProperty->property->setValue($entity, $otherEntity);
-							continue;
-						}
+					if ($otherEntity = $entityCache->getEntity($value, $relatedColumn)) {
+						$relatedProperty->property->setValue($entity, $otherEntity);
+						continue;
 					}
+
 					if ($relatedProperty->property->getType()->allowsNull()) {
 						$relatedProperty->property->setValue($entity, null);
 					}
@@ -945,14 +1001,19 @@ trait EntityAppModelTrait
         $findQuery = $this->getFindQuery();
 
 		$fullContains = $findQuery->getFullContains();
+		/*bdump($fullContains, static::class);
+		bdump($findQuery);*/
 
         if ( ! $fullContains->contains) {
             return;
         }
-        $containedModels = array_keys($fullContains->contains);
+		bdump($findQuery, static::class);
+		bdump($entities);
+		bdump($fullContains);
 
-        $modelsWithNewConditions = [];
-        $callbacks = [];
+        $containedModels = array_keys($fullContains->contains);
+		bdump(EntityHelper::getPropertiesOfOtherEntities(static::getEntityClass(), $containedModels) );
+		exit;
 		foreach (EntityHelper::getPropertiesOfOtherEntities(static::getEntityClass(), $containedModels) as $relatedProperty) {
 			$modelClass = $relatedProperty->relatedColumnProperty->entityClass::getModelClass();
 			/** @var static $Model */
@@ -966,15 +1027,14 @@ trait EntityAppModelTrait
 				continue;
 			}
 
-
+			$keyPropertyName = $relatedProperty->columnProperty->propertyName;
+			// Vazební sloupec v cizí tabulce
+			$relatedColumn = $relatedProperty->relatedColumnProperty->column;
+			// Najdeme modelovo contains
+			$modelContains = $findQuery->getFullContains([$modelClass]);
 
 			if ($relatedProperty->property->getType()->getName() === 'array') {
 				// Relace []
-				$keyPropertyName = $relatedProperty->columnProperty->propertyName;
-				// Vazební sloupec v cizí tabulce
-				$relatedColumn = $relatedProperty->relatedColumnProperty->column;
-				// Najdeme modelovo contains
-				$modelContains = $findQuery->getFullContains([$modelClass]);
 				foreach ($entities as $entity) {
 					if ($relatedProperty->property->isInitialized($entity)) {
 						continue;
@@ -985,17 +1045,11 @@ trait EntityAppModelTrait
 						// Přidáme do conditions
 						$modelContains->params->getConditions()->addOrCondition($relatedColumn, $value);
 
-						$findQuery->callbacks[$modelClass][] = function () use ($entity, $relatedProperty, $modelContains, $findQuery, $relatedColumn, $value) {
-							$cache = $findQuery->cache[$modelContains->modelClass][spl_object_id($modelContains)][$relatedColumn][$value] ?? null;
-							if ($cache === null) {
-								$appendValue = [];
-							} elseif (is_array($cache)) {
-								$appendValue = $cache;
-							} else {
-								$appendValue = [$cache];
-							}
-							$relatedProperty->property->setValue($entity, $appendValue);
-						};
+						$findQuery->getEntityCache($modelContains)->setOnAdd($relatedColumn, $value, false, function (CakeEntity $otherEntity) use ($relatedProperty, $entity) {
+							$entity->{$relatedProperty->property->getName()}[$otherEntity->getPrimary()] = $otherEntity;
+						});
+
+						// TODO CALLBACKS
 
 						$modelContainsModels = array_keys($modelContains->contains);
 						unset($modelContainsModels[static::class]); // todo zpetna se bude resit jinde
@@ -1016,11 +1070,6 @@ trait EntityAppModelTrait
 				}
 			} else {
 				// Relace ->
-				$keyPropertyName = $relatedProperty->columnProperty->propertyName;
-				// Vazební sloupec v cizí tabulce
-				$relatedColumn = $relatedProperty->relatedColumnProperty->column;
-				// Najdeme modelovo contains
-				$modelContains = $findQuery->getFullContains([$modelClass]);
 				foreach ($entities as $entity) {
 					if ($relatedProperty->property->isInitialized($entity)) {
 						continue;
@@ -1032,24 +1081,16 @@ trait EntityAppModelTrait
 						// Přidáme do conditions
 						$modelContains->params->getConditions()->addOrCondition($relatedColumn, $value);
 
-						$findQuery->callbacks[$modelClass][] = function () use ($entity, $relatedProperty, $modelContains, $findQuery, $relatedColumn, $value, $modelClass) {
-							$cache = $findQuery->cache[$modelContains->modelClass][spl_object_id($modelContains)][$relatedColumn][$value] ?? null;
-							if ($cache === null) {
-								$appendValue = null;
-							} elseif (is_array($cache)) {
-								$appendValue = $cache[array_key_first($cache)];
-							} else {
-								$appendValue = $cache;
+						$findQuery->getEntityCache($modelContains)->setOnAdd($relatedColumn, $value, true, function (?CakeEntity $otherEntity) use ($relatedProperty, $entity) {
+							if ($otherEntity === null && $relatedProperty->property->getType()->allowsNull()) {
+								$relatedProperty->property->setValue($entity, null);
+							} elseif ($otherEntity) {
+								$relatedProperty->property->setValue($entity, $otherEntity);
 							}
-							if ($appendValue === null) {
-								if ($relatedProperty->property->getType()->allowsNull()) {
-									$relatedProperty->property->setValue($entity, null);
-								}
-							} else {
-								$relatedProperty->property->setValue($entity, $appendValue);
-							}
+							// Zůstane unset, pokud není nullable a append je null. Může se pak asi točit - performance?
+						});
 
-						};
+						// TODO CALLBACKS
 
 						$modelContainsModels = $modelContains->contains;
 						/*bdump($modelContainsModels, static::class . ' ->' . $modelClass);
