@@ -2,32 +2,15 @@
 
 namespace Cesys\CakeEntities\Entities\EFolder;
 
+use Cesys\CakeEntities\Entities\EFolder\Interfaces\IMoneyTransaction;
 use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FCurrency;
 use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FInvoice;
 use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FSubjectBank;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Nette\Utils\DateTime;
 
-class MoneyTransaction extends CakeEntity
+class MoneyTransaction extends CakeEntity implements IMoneyTransaction
 {
-	public const TypeTransfer = 'transfer';
-	public const TypeCard = 'card';
-	public const TypeCash = 'cash';
-	public const TypeVoucher = 'voucher';
-
-	public const Types = [
-		self::TypeCash => self::TypeCash,
-		self::TypeTransfer => self::TypeTransfer,
-		self::TypeCard => self::TypeCard,
-		self::TypeVoucher => self::TypeVoucher,
-	];
-
-	public const ProspectiveTypeDeposit = 'deposit';
-	public const ProspectiveTypeSupplement = 'supplement';
-
-	public const ProspectiveTypeCommission = 'commission';
-
-	
 	public int $id;
 	
 	public int $folderId;
@@ -35,12 +18,15 @@ class MoneyTransaction extends CakeEntity
 	public ?int $fBankTransactionId;
 	
 	public ?int $fSubjectBankId;
+	public ?int $reservationId;
+	public ?int $fileInvoiceId;
+	public ?int $bookingId;
 	
 	public DateTime $date;
 	
 	public string $name;
 	
-	public ?string $description;
+	public string $description;
 	
 	public ?string $variableSymbol;
 	
@@ -48,7 +34,15 @@ class MoneyTransaction extends CakeEntity
 	
 	public int $fCurrencyId;
 
-	public ?string $type;
+	/**
+	 * @var string ENUM
+	 */
+	public string $method;
+
+	/**
+	 * @var string ENUM
+	 */
+	public string $type;
 	
 	public bool $isIncome;
 
@@ -59,11 +53,7 @@ class MoneyTransaction extends CakeEntity
 	 */
 	public bool $isProspective;
 
-	public ?string $prospectiveType;
-
 	public bool $checked;
-
-	public bool $active;
 
 	public FCurrency $fCurrency;
 
@@ -73,6 +63,13 @@ class MoneyTransaction extends CakeEntity
 	 * @var callable
 	 */
 	protected $exchangeRateCallback;
+
+
+	public static function getModelClass(): string
+	{
+		return static::$modelClasses[static::class] ??= 'EfMoneyTransaction';
+	}
+
 
 	/**
 	 * @param callable $exchangeRateCallback
@@ -85,13 +82,7 @@ class MoneyTransaction extends CakeEntity
 
 	public function getExchangeRate(): ?ExchangeRate
 	{
-		if ($this->fCurrencyId === FInvoice::DefaultCurrencyId) {
-			return null;
-		}
-
-		$date = min($this->date, new DateTime('yesterday'));
-
-		return ($this->exchangeRateCallback)($date, $this->fCurrencyId, FInvoice::DefaultCurrencyId);
+		return ($this->exchangeRateCallback)($this->date, $this->fCurrencyId);
 	}
 
 	/**
@@ -112,17 +103,14 @@ class MoneyTransaction extends CakeEntity
 	public function isEditable(): bool
 	{
 		if ($this->checked) {
-			// Transakce, která je checked nemůže být měněna
+			// Transakce, která je checked, nemůže být měněna
 			return false;
 		}
-		if ($this->prospectiveType) {
-			// Výhledová transakce nemá jít editovat
+		if ($this->isProspective) {
+			// Výhledová transakce nelze editovat, je automatická
 			return false;
 		}
-		if ($this->fBankTransactionId) {
-			// Transakce vytvořená z FBankTransaction -> nelze editovat
-			return false;
-		}
+
 		return true;
 	}
 
@@ -132,19 +120,11 @@ class MoneyTransaction extends CakeEntity
 			// Transakce, která je checked nemůže být měněna
 			return false;
 		}
-		if ($this->amount === null) {
-			// nezadaná částka, nemůže být checked
+		if ($this->isProspective) {
+			// Výhledová transakce nelze chcecknout
 			return false;
 		}
-		if (in_array($this->prospectiveType, [self::ProspectiveTypeDeposit, self::ProspectiveTypeSupplement])) {
-			// Výhledová transakce deposit / supplement, nemá být checkable
-			return false;
-		}
-		$today = new DateTime('today');
-		if ($this->date > $today) {
-			// Budoucí transakce nemůže být checked
-			return false;
-		}
+
 		return true;
 	}
 
@@ -154,10 +134,12 @@ class MoneyTransaction extends CakeEntity
 			// Transakce, která je checked nemůže být měněna
 			return false;
 		}
-		if ($this->prospectiveType) {
-			// Výhledová transakce s prospectiveType nelze smazat
+
+		if ($this->isProspective) {
+			// Výhledová transakce nelze smazat - je automatická a okamžitě by se zase vygenerovala
 			return false;
 		}
+
 		return true;
 	}
 }

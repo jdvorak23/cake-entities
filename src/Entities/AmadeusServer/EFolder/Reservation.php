@@ -2,45 +2,13 @@
 
 namespace Cesys\CakeEntities\Entities\AmadeusServer\EFolder;
 
+use Cesys\CakeEntities\Entities\AmadeusServer\Interfaces\IReservation;
 use Cesys\CakeEntities\Entities\EFolder\Invoice;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Nette\Utils\DateTime;
 
-class Reservation extends CakeEntity
+class Reservation extends CakeEntity implements IReservation
 {
-	/**
-	 * Typy enum $paymentCollection
-	 */
-	public const PaymentCollectionSeller = 'seller';
-	public const PaymentCollectionTO = 'tour_operator';
-
-	/**
-	 * Typy 'enum' $reservationType. Ve skutečnosti není enum, ale pracuje se s ním tak
-	 */
-	public const ReservationTypeCustomDirectSell = 'customDirectSell';
-	public const ReservationTypeCustomPartnerSell = 'customPartnerSell';
-	public const ReservationTypeSystemDirectSell = 'systemDirectSell';
-	public const ReservationTypeSystemPartnerSell = 'systemPartnerSell';
-
-	/**
-	 * Typy enum $paymentStatus
-	 */
-	public const PaymentStatusUnpaid = 'unpaid';
-
-	public const PaymentStatusOther = 'other';
-
-	public const PaymentStatusOption = 'option';
-
-	public const PaymentStatusPaidDeposit = 'paid_deposit';
-
-	public const PaymentStatusPaid = 'paid';
-
-	public const PaymentStatusReturned = 'returned';
-
-	public const PaymentStatusCancelled = 'cancelled';
-
-
-
 	public int $id;
 
 	public ?int $tourOperatorId;
@@ -48,6 +16,8 @@ class Reservation extends CakeEntity
 	public int $travelAgencyId;
 
 	public ?int $customerId;
+
+	public ?int $efFolderId;
 
 	public ?int $efProcessNumberId;
 
@@ -74,42 +44,50 @@ class Reservation extends CakeEntity
 
 	public DateTime $created;
 
+	/**
+	 * @var Contract id reservationId
+	 */
+	public Contract $contract;
 
 	/**
-	 * @var Contract[] reservation_id
+	 * @var ?Invoice id reservationId
 	 */
-	public array $contracts;
+	public ?Invoice $invoice;
 
 	/**
-	 * @var Invoice[] reservation_id
+	 * Pomůcka pro uložení předchozího stavu, není sloupec, ručně
+	 * @var string
 	 */
-	public array $invoices;
+	public string $oldPaymentStatus;
+
 
 	public static function getModelClass(): string
 	{
 		return static::$modelClasses[static::class] ??= 'EfAmadeusReservation';
 	}
 
+
+	public static function getExcludedFromProperties(): array
+	{
+		return ['oldPaymentStatus'];
+	}
+
+
 	public function getClientName(): string
 	{
 		return trim(trim($this->firstname) . ' ' . trim($this->surname));
 	}
 
-	public function getContract(): ?Contract
-	{
-		if ($this->contracts) {
-			return current($this->contracts);
-		}
-		return null;
-	}
 
+	/**
+	 * @return Invoice|null
+	 * @deprecated
+	 */
 	public function getInvoice(): ?Invoice
 	{
-		if ($this->invoices) {
-			return current($this->invoices);
-		}
-		return null;
+		return $this->invoice;
 	}
+
 
 	public function isPartnerSell(): bool
 	{
@@ -117,34 +95,40 @@ class Reservation extends CakeEntity
 			|| $this->reservationType === self::ReservationTypeSystemPartnerSell;
 	}
 
+
 	public function getPrice(): float
 	{
-		return $this->getContract()->getPrice();
+		return $this->contract->getPrice();
 	}
+
 
 	public function getCommission(): float
 	{
-		return $this->getContract()->getCommission();
+		return $this->contract->getCommission();
 	}
+
 
 	public function getPriceWithoutCommission(): float
 	{
-		return $this->getContract()->getPriceWithoutCommission();
+		return $this->contract->getPriceWithoutCommission();
 	}
+
 
 	public function getDeposit(): float
 	{
 		return $this->paymentCollection === self::PaymentCollectionSeller
-			? $this->getContract()->getDepositWithoutCommission()
-			: $this->getContract()->getDeposit();
+			? $this->contract->getDepositWithoutCommission()
+			: $this->contract->getDeposit();
 	}
+
 
 	public function getSupplement(): float
 	{
 		return $this->paymentCollection === self::PaymentCollectionSeller
-			? $this->getContract()->getSupplementWithoutCommission()
-			: $this->getContract()->getSupplement();
+			? $this->contract->getSupplementWithoutCommission()
+			: $this->contract->getSupplement();
 	}
+
 
 	public function getTotalPayment(): float
 	{

@@ -2,7 +2,7 @@
 
 namespace Cesys\CakeEntities\Entities\EFolder;
 
-use Cesys\CakeEntities\Entities\AmadeusServer\EFolder\Reservation;
+use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FSubject;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 
 /**
@@ -14,32 +14,22 @@ class ProcessNumber extends CakeEntity
 
 	public int $folderId;
 
-	public ?int $tourOperatorId;
+	public int $fSubjectId;
 
 	public string $number;
 
-	/**
-	 * @var Reservation[] ef_process_number_id
-	 */
-	public array $reservations;
-
 	public Folder $folder;
 
-	public function getLastDateTo(): ?\DateTime
-	{
-		$lastDate = null;
-		foreach ($this->reservations as $reservation) {
-			if ( ! $contract = $reservation->getContract()) {
-				continue;
-			}
-			if ( ! $contract->dateTo) {
-				continue;
-			}
-			if ( ! $lastDate || $contract->dateTo > $lastDate) {
-				$lastDate = $contract->dateTo;
-			}
-		}
-		return $lastDate;
-	}
+	public FSubject $fSubject;
 
+	/**
+	 * @var FileInvoice[] processNumberId
+	 */
+	public array $fileInvoices;
+
+
+	public static function getModelClass(): string
+	{
+		return static::$modelClasses[static::class] ??= 'EfProcessNumber';
+	}
 }

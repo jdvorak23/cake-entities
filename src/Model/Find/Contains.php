@@ -50,12 +50,13 @@ class Contains
 
 		$pathCache[] = $instance = new self($modelClass);
 
+		$params = $contains[$modelClass];
+		unset($params['contains']);
+		$instance->params = Params::create($params);
+
 		foreach ($contains[$modelClass]['contains'] as $containedModelClass => $modelContains) {
 			$instance->contains[$containedModelClass] = self::create([$containedModelClass => $modelContains]);
 		}
-
-		unset($contains[$modelClass]['contains']);
-		$instance->params = Params::create($contains[$modelClass]);
 
 		$foundSimilar = false;
 		if (isset($modelsContains[$modelClass])) {

@@ -34,9 +34,23 @@ class InputTemplateProperty extends CakeEntity
 
 	public ?InputTemplateProperty $parent;
 
+
+	/**
+	 * Neděje se automaticky
+	 * @var InputTemplateProperty[]
+	 */
+	public array $children;
+
 	protected bool $hasSearchedValue = false;
 
 	protected bool $hasError = false;
+
+
+	public static function getModelClass(): string
+	{
+		return static::$modelClasses[static::class] ??= 'EfInputTemplateProperty';
+	}
+
 
     public function getName(): string
     {
@@ -107,7 +121,7 @@ class InputTemplateProperty extends CakeEntity
 			if (is_array($text)) {
 				$values[] = $this->findValues($text);
 			} else {
-				$values[] = $this->findValue($text);
+				$values[] = $this->findValue($text ?? '');
 			}
 		}
 		return $values;
@@ -144,6 +158,16 @@ class InputTemplateProperty extends CakeEntity
 		}
 
 		return $value;
+	}
+
+
+	public function getWithParents(): array
+	{
+		$result[$this->id] = $this;
+		if ($this->parent) {
+			$result = $result + $this->parent->getWithParents();
+		}
+		return $result;
 	}
 
 }

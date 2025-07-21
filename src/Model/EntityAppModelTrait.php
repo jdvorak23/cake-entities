@@ -162,6 +162,7 @@ trait EntityAppModelTrait
             if ($index === false) {
                 continue;
             }
+			//?
             unset($containedModels[$index]);
 
             /** @var static $Model */
@@ -170,6 +171,8 @@ trait EntityAppModelTrait
 				// todo interface
                 throw new \InvalidArgumentException("Model '$modelClass' included in \$contains parameter is not instance of EntityAppModel.");
             }
+
+			// Todo když to nesedí pak to dle dělá bordel
 			if ( ! $this->schema($relatedProperty->columnProperty->column)) {
 				// Musí být sloupec ve schema
 				continue;
@@ -206,6 +209,50 @@ trait EntityAppModelTrait
 
         return $contains;
     }
+
+	public function getParameterContains(array $fullContains): ?array
+	{
+		$isClientCall = __FUNCTION__ !== debug_backtrace(!DEBUG_BACKTRACE_PROVIDE_OBJECT|DEBUG_BACKTRACE_IGNORE_ARGS,2)[1]['function'];
+		if ($isClientCall) {
+			$fullContains = $fullContains[static::class]['contains'];
+		}
+
+		$contains = [];
+		foreach ($fullContains as $modelClass => $modelParams) {
+			if ($modelParams['contains'] === null) {
+				$contains[] = $modelClass;
+				continue;
+			}
+
+			if ($modelParams['contains']) {
+				$modelParams['contains'] = $this->getParameterContains($modelParams['contains']);
+				if ($modelParams['contains'] !== $this->getModel($modelClass)->getContains()) {
+					$contains[$modelClass] = $modelParams;
+				} else {
+					$contains[] = $modelClass;
+				}
+				//$contains[$modelClass] = $modelParams;
+			} else {
+				unset($modelParams['contains']);
+				//bdump($modelParams);
+				//bdump($this->getModel($modelClass)->getContains());
+				if ($modelParams === $this->getModel($modelClass)->getContains()) {
+					$contains[] = $modelClass;
+				} else {
+					$contains[$modelClass] = $modelParams;
+				}
+			}
+
+		}
+
+		return $contains;
+	}
+
+
+	public function getContains(): array
+	{
+		return $this->contains;
+	}
 
 
     /**
@@ -311,6 +358,7 @@ trait EntityAppModelTrait
         if ( ! $findQuery = $this->getFindQuery()) {
 			// Nové volání, inicializace FindQuery
 			$fullContains = $this->getFullContains($contains, true);
+			//bdump($fullContains);
 			$isSystem = debug_backtrace(!DEBUG_BACKTRACE_PROVIDE_OBJECT|DEBUG_BACKTRACE_IGNORE_ARGS,2)[1]['function'] === 'getEntities';
 			$findQuery = $this->createFindQuery($fullContains, $isSystem);
 		}
@@ -318,7 +366,7 @@ trait EntityAppModelTrait
 		$findQuery->findStart(static::class);
 		$fullContains = $findQuery->getFullContains();
 
-		if (count($findQuery->activePath) > 10) { // TODO
+		if (count($findQuery->activePath) > 100) { // TODO
 			bdump("DOPICICI");
 			$findQuery->findEnd();
 			return [];
@@ -507,7 +555,7 @@ trait EntityAppModelTrait
 
 
         if ($findQuery->findEnd()) {
-//            bdump($findQuery, static::class);
+            //bdump($findQuery, static::class);
 			array_pop(self::$findQueries);
             return $entities;
         }
@@ -577,13 +625,18 @@ trait EntityAppModelTrait
         // todo overeni class
         $data = $entity->toDbArray();
         if ($entity->getPrimary() === null) {
-            $this->id = false; // todo create?
+            $this->id = false; // Místo volání create(), které je naprd
         }
         $result = $this->save([$this->alias => array_merge($data, $appendData)], $validate, $fieldList);
         
         if ($result) {
+			foreach ($result[$this->alias] as $column => $value) {
+				if ($columnProperty = EntityHelper::getColumnPropertiesByColumn(static::getEntityClass())[$column] ?? null) {
+					EntityHelper::appendFromDbValue($entity, $columnProperty, $value);
+				}
+			}
             // Pokud nebylo id, přiřadí se
-            if ($entity->getPrimary() === null) {
+            /*if ($entity->getPrimary() === null) {
                 $entity->setPrimary($this->id);
             }
 
@@ -593,7 +646,7 @@ trait EntityAppModelTrait
             }
             if (isset($result[$this->alias]['modified'])  && ($columnProperty = $this->getColumnProperties()['modified'] ?? null)) {
 				EntityHelper::appendFromDbValue($entity, $columnProperty, $result[$this->alias]['modified']);
-            }
+            }*/
 
             $this->entities[$entity->getPrimary()] = $entity;
         }
@@ -761,6 +814,7 @@ trait EntityAppModelTrait
                     continue;
                 }
 				if ( ! isset($entity->{$keyPropertyName})) {
+					$relatedProperty->property->setValue($entity, null);
 					continue;
 				}
                 $idsToFetch[] = $entity->getPrimary();
@@ -1037,7 +1091,11 @@ trait EntityAppModelTrait
 							if ($cache === null) {
 								$appendValue = null;
 							} elseif (is_array($cache)) {
-								$appendValue = $cache[array_key_first($cache)];
+								if ($cache) {
+									$appendValue = $cache[array_key_first($cache)];
+								} else {
+									$appendValue = null;
+								}
 							} else {
 								$appendValue = $cache;
 							}

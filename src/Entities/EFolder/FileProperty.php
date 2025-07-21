@@ -20,6 +20,12 @@ class FileProperty extends CakeEntity
 
 	public TemplateProperty $templateProperty;
 
+
+	public static function getModelClass(): string
+	{
+		return static::$modelClasses[static::class] ??= 'EfFileProperty';
+	}
+
 	/**
 	 * @return mixed
 	 */

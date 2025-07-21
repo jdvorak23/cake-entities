@@ -20,27 +20,13 @@ class FSubjectAddress extends CakeEntity
 
 	public ?string $street;
 
-	public $houseNumber;
-
-	public $publicSpaceType;
-
-	public $buildingNumber;
-
-	public $floorNumber;
-
-	public $entranceNumber;
-
-	public $doorNumber;
-
 	public ?string $streetOther;
 
 	public ?string $postcode;
 
 	public ?string $city;
 
-	public $hash;
-
-	public $active;
+	public FCountry $fCountry;
 
 	public static function getModelClass(): string
 	{

@@ -15,8 +15,8 @@ class InputTemplate extends CakeEntity
 
     public ?string $className;
 
-	public ?int $fSubjectId; // todo podmínka do výběru templat na parsování
-
+	public bool $isParent;
+	public bool $construction;
 	public bool $active;
 
     public ?DateTime $created;
@@ -30,11 +30,31 @@ class InputTemplate extends CakeEntity
      */
     public array $properties;
 
+
+	public static function getModelClass(): string
+	{
+		return static::$modelClasses[static::class] ??= 'EfInputTemplate';
+	}
+
+	/**
+	 * @return InputTemplateProperty[]
+	 */
     public function getInputTemplateProperties(): array
     {
-		$result = $this->properties;
+		// Chceme mít na začátku ty s hodnotou, to jsou ty, které se (u stejného korporátu) jediné liší
+		// Tj. performance, aby se co nejrychleji vyloučily ty, co nechceme
+		$withValue = [];
+		$rest = [];
+		foreach ($this->properties as $property) {
+			if ($property->value !== null) {
+				$withValue[$property->id] = $property;
+			} else {
+				$rest[$property->id] = $property;
+			}
+		}
+		$result = $withValue + $rest;
 		if (isset($this->parent)) {
-			$result = $this->properties + $this->parent->getInputTemplateProperties();
+			$result = $result + $this->parent->getInputTemplateProperties();
 		}
         return $result;
     }
@@ -49,7 +69,7 @@ class InputTemplate extends CakeEntity
 		foreach ($this->getInputTemplateProperties() as $inputTemplateProperty) {
 			if ( ! $inputTemplateProperty->hasSearchedValue()) {
 				$inputTemplateProperty->setValueFrom($text);
-				if ($inputTemplateProperty->hasError() && $interruptOnError) {
+				if ($interruptOnError && $inputTemplateProperty->hasError()) {
 					return false;
 				}
 			}
@@ -67,5 +87,50 @@ class InputTemplate extends CakeEntity
 			}
 		}
 		return $errorsCount;
+	}
+
+	public function getParentsBreadcrumbs(): string
+	{
+		$isClientCall = __FUNCTION__ !== debug_backtrace(!DEBUG_BACKTRACE_PROVIDE_OBJECT|DEBUG_BACKTRACE_IGNORE_ARGS,2)[1]['function'];
+		if ( ! $this->parent) {
+			return $isClientCall ? '-' : ($this->company . " ($this->id)");
+		}
+		$result = '';
+		if ( ! $isClientCall) {
+			$result .= ($this->company . " ($this->id)") . ' -> ';
+		}
+		$result .= $this->parent->getParentsBreadcrumbs();
+
+		return $result;
+	}
+
+	/**
+	 * @return InputTemplateProperty[]
+	 */
+	public function getInputTemplatePropertiesTree(): array
+	{
+		$withValue = [];
+		$rest = [];
+		foreach ($this->properties as $property) {
+			if ($property->value !== null) {
+				$withValue[$property->id] = $property;
+			} else {
+				$rest[$property->id] = $property;
+			}
+			$property->children = [];
+		}
+		$allProperties = $withValue + $rest;
+
+		$topProperties = [];
+		/** @var InputTemplateProperty $property */
+		foreach ($allProperties as $property) {
+			if ( ! $property->parent) {
+				$topProperties[$property->id] = $property;
+			} else {
+				$property->parent->children[$property->id] = $property;
+			}
+		}
+
+		return $topProperties;
 	}
 }

@@ -29,6 +29,11 @@ class ExchangeRate extends CakeEntity
 	 */
 	public FCurrency $fCurrency;
 
+	public static function getModelClass(): string
+	{
+		return static::$modelClasses[static::class] ??= 'EfExchangeRate';
+	}
+
 	public function convertFrom(float $amountInForeignCurrency): float
 	{
 		$amount = $this->rate / $this->count * $amountInForeignCurrency;

@@ -35,11 +35,11 @@ class Params
 					$property->setValue($instance, null);
 					continue;
 				}
-				if ($property->getType()->getName() === Conditions::class && is_array($value)) {
+				if ($property->getType() && $property->getType()->getName() === Conditions::class && is_array($value)) {
 					$property->setValue($instance, Conditions::create($value));
 					continue;
 				}
-				if ($property->getType()->getName() === 'array') {
+				if ($property->getType() && $property->getType()->getName() === 'array') {
 					if ( ! $property->getType()->allowsNull() && $value === null) {
 						$value = [];
 					} elseif ( ! is_array($value)) {

@@ -21,10 +21,10 @@ class User extends CakeEntity
 
 	public function getName(): string
 	{
-		if (isset($this->superuserId)) {
-			return "$this->name (CeSYS)";
-		}
 		$country = strtolower($this->country);
-		return "$this->name ($country$this->customerId)";
+		if (isset($this->superuserId)) {
+			return "$this->name ($country - CeSYS)";
+		}
+		return "$this->name ($country - $this->customerId)";
 	}
 }

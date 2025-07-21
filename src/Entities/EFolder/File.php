@@ -10,9 +10,11 @@ class File extends CakeEntity
 {
     public int $id;
 
-	public int $folderId;
+	public ?int $folderId;
 
 	public ?int $inputTemplateId;
+
+	public string $dir;
 
     public string $filename;
 
@@ -37,12 +39,12 @@ class File extends CakeEntity
 
 	public ?InputTemplate $inputTemplate;
 
-	/**
-	 * @var Invoice[] file_id
-	 */
-	public array $invoices;
-
 	public Folder $folder;
+
+	/**
+	 * @var ?FileInvoice id fileId
+	 */
+	public ?FileInvoice $fileInvoice;
 
     public string $path;
 
@@ -53,15 +55,15 @@ class File extends CakeEntity
 
 	protected $parsedInvoice;
 
-	/**
-	 * nechci závislost ach jko
-	 * @var callable
-	 *
-	protected $documentInvoiceFactory;
-	public function setDocumentInvoiceFactory(callable $documentInvoiceFactory)
+	public static function getModelClass(): string
 	{
-		$this->documentInvoiceFactory = $documentInvoiceFactory;
-	}*/
+		return static::$modelClasses[static::class] ??= 'EfFile';
+	}
+
+	public static function getExcludedFromProperties(): array
+	{
+		return ['path'];
+	}
 
 	public function setParsedInvoiceFactory(callable $parsedInvoiceFactory)
 	{
@@ -75,18 +77,6 @@ class File extends CakeEntity
 	{
 		return $this->parsedInvoice ??= ($this->parsedInvoiceFactory)($this);
 	}
-
-	public static function getModelClass(): string
-	{
-		return static::$modelClasses[static::class] ??= 'EfFile';
-	}
-
-    public static function getExcludedFromProperties(): array
-    {
-        return ['path'];
-    }
-
-
 
 
 
@@ -106,10 +96,8 @@ class File extends CakeEntity
         if ( ! isset($this->path) ) {
             throw new \LogicException('Path is not set');
         }
-        if ( ! isset($this->folderId) ) {
-            throw new \LogicException('FolderId is not set');
-        }
-        return Filesystem::joinPaths($this->path, $this->folderId, $this->getFullFilename());
+
+        return Filesystem::joinPaths($this->path, $this->dir, $this->getFullFilename());
     }
 
 	public function hasInvoiceOfType(int $fInvoiceTypeId): bool

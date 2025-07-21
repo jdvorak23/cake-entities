@@ -2,14 +2,12 @@
 
 namespace Cesys\CakeEntities\Entities\UcaCustomer;
 
-use Cesys\CakeEntities\Model\Entities\CakeEntity;
+use Cesys\CakeEntities\Entities\EFolder\MoneyTransaction;
+use Cesys\CakeEntities\Entities\UcaCustomer\Bases\BaseFBankTransaction;
 use Nette\Utils\DateTime;
 
-class FBankTransaction extends CakeEntity
+class FBankTransaction extends BaseFBankTransaction
 {
-	const StatusMatched = 'matched';
-	const StatusUnused = 'unused';
-
 	public int $id;
 	
 	public int $fSubjectBankId;
@@ -60,23 +58,31 @@ class FBankTransaction extends CakeEntity
 	
 	public bool $checked;
 
+	/**
+	 * null - nepoužitá
+	 * true - použitá v plné výši
+	 * false - odložena, ve smyslu nepoužita a nechceme použít
+	 * @var bool|null
+	 */
+	public ?bool $used;
+
+	/**
+	 * @var FCurrency currency code
+	 */
+	public FCurrency $fCurrency;
+
+	/**
+	 * @var MoneyTransaction[] fBankTransactionId
+	 */
+	public array $moneyTransactions;
+
 	public static function getModelClass(): string
 	{
 		return static::$modelClasses[static::class] ??= 'FBankTransaction';
 	}
 
-	/**
-	 * Kdo poslal peníze
-	 * @return string
-	 */
-	public function getName(): string
+	protected function getFCurrency(): FCurrency
 	{
-		if (isset($this->offsetName)) {
-			return $this->offsetName;
-		}
-		if (isset($this->userIdentification)) {
-			return $this->userIdentification;
-		}
-		return '';
+		return $this->fCurrency;
 	}
 }

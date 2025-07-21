@@ -25,9 +25,34 @@ class TemplatePattern extends CakeEntity
 
     public ?DateTime $modified;
 
+
+	public static function getModelClass(): string
+	{
+		return static::$modelClasses[static::class] ??= 'EfTemplatePattern';
+	}
+
 	public function getReplacePatterns(): array
 	{
 		return $this->replacePatterns ? (unserialize($this->replacePatterns) ?: []) : [];
+	}
+
+	public function setReplacePatterns(?array $replacePatterns = null)
+	{
+		if ( ! $replacePatterns) {
+			$this->replacePatterns = null;
+			return;
+		}
+
+		$this->replacePatterns = serialize($replacePatterns);
+	}
+
+	public function setReplacements(?array $replacements = null)
+	{
+		if ( ! $replacements) {
+			$this->replacements = null;
+			return;
+		}
+		$this->replacements = serialize($replacements);
 	}
 
 	public function getReplacements(): array

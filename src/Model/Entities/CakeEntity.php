@@ -109,7 +109,7 @@ abstract class CakeEntity
      */
     public static function getModelClass(): string
     {
-        return static::$modelClasses[static::class] ??= Reflection::getReflectionClass(static::class)->getShortName();
+        return static::$modelClasses[static::class] ??= 'E' . Reflection::getReflectionClass(static::class)->getShortName();
     }
 
 
