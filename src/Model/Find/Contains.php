@@ -15,9 +15,44 @@ class Contains
 
 	public string $modelClass;
 
+	public int $inNodesUsed = 0;
+
+	private array $nextUsedIndexes = [];
+
 	public function __construct(string $modelClass)
 	{
 		$this->modelClass = $modelClass;
+	}
+
+	public function hasNU1(): bool
+	{
+		return $this->inNodesUsed === 1;
+	}
+
+	public function hasNextStandardFind(): bool
+	{
+		return $this->inNodesUsed > 1;
+	}
+
+	public function skipUse(): void
+	{
+		$this->inNodesUsed--;
+	}
+
+	public function afterFind(): void
+	{
+		$this->inNodesUsed--;
+		$this->nextUsedIndexes = [];
+	}
+
+	public function setNextUsedIndex(string $index): void
+	{
+		$this->nextUsedIndexes[$index] = $index;
+	}
+
+	public function getNextUsedIndexes(): array
+	{
+		return $this->nextUsedIndexes;
 	}
 
 	public function getId(): int
@@ -36,17 +71,20 @@ class Contains
 		static $query;
 		static $pathCache;
 		/** @var static[][] $modelsContains */
-		static $modelsContains;
 		if ( ! isset($query)) {
 			$query = new Query();
 			$pathCache = [];
-			$modelsContains = [];
+			$query->onEnd[] = function (self $instance) use (&$query) {
+				$query = null;
+				static::replaceIdentical($instance);
+			};
 		}
 		$query->start($modelClass);
 
 		if ($contains[$modelClass]['contains'] === null) {
-			$index = array_search($modelClass, $query->activePath);
-			$query->end();
+			// null znamená, že jsme v 'rekurzi', tj. v přímé cestě 'nahoru' už je stejný contains => přiřadíme
+			$index = array_search($modelClass, $query->activePath, true);
+			$query->end(); // Zde query určitě není nikdy na konci (vždy false)
 			return $pathCache[$index];
 		}
 
@@ -59,63 +97,12 @@ class Contains
 			$instance->contains[$containedModelClass] = self::create([$containedModelClass => $modelContains]);
 		}
 
-		$foundSimilar = false;
-		if (isset($modelsContains[$modelClass])) {
-			foreach ($modelsContains[$modelClass] as $otherModelContains) {
-				if ($otherModelContains->isEqualTo($instance)) {
-					$instance = $otherModelContains;
-					$foundSimilar = true;
-					break;
-				}
-			}
-		}
-
-		if ( ! $foundSimilar) {
-			$modelsContains[$modelClass][] = $instance;
-		}
-
 		array_pop($pathCache);
-		if ($query->end()) {
-			$query = null;
-		}
+		$query->end($instance);
 
 		return $instance;
 	}
 
-	/*public function getContains(): ?array
-	{
-		return $this->toArray()['contains'];
-	}
-
-	public function toArray(): ?array
-	{
-		static $query;
-		static $cache;
-		if ( ! isset($query)) {
-			$query = new Query();
-			$cache = [];
-		}
-		$query->start($this->modelClass);
-		$objId = spl_object_id($this);
-		if (isset($cache[$objId])) {
-			$query->end();
-			return null;
-		}
-
-		$cache[$objId] = 1;
-
-		$params = $this->params->toArray();
-		$params['contains'] = [];
-		foreach ($this->contains as $modelClass => $modelContains) {
-			$params['contains'][$modelClass] = $modelContains->toArray();
-		}
-
-		if ($query->end()) {
-			$query = null;
-		}
-
-		return $params;
-	}*/
 
 	/**
 	 * @param Contains $contains
@@ -123,6 +110,8 @@ class Contains
 	 */
 	public function isEqualTo(self $contains): bool
 	{
+		//bdump($this);
+		//bdump($contains);
 		static $query;
 		static $pathCache;
 		if ( ! isset($query)) {
@@ -154,6 +143,8 @@ class Contains
 			count($this->contains) !== count($contains->contains)
 			|| array_diff_key($this->contains, $contains->contains)
 		) {
+			//bdump(count($this->contains), "chcip");
+			//bdump(count($contains->contains));
 			$query->end();
 			return false;
 		}
@@ -167,6 +158,41 @@ class Contains
 
 		$query->end();
 		return true;
+	}
+
+
+
+
+	private static function replaceIdentical(Contains $contains): void
+	{
+		bdump($contains, 'UNREPLACED Contains');
+		$cache = [];
+		$queue = new \SplQueue();
+		$queue[] = $contains;
+		$containsToAppend = [];
+		foreach ($queue as $contains) {
+			if (isset($cache[$contains->modelClass][$contains->getId()])) {
+				// Stejný node, který už jsme prošli / procházíme, na jiném místě ve stromě
+				continue;
+			}
+
+			/** @var static $sameModelContains */
+			foreach ($cache[$contains->modelClass] ?? [] as $sameModelContains) {
+				if ($sameModelContains->isEqualTo($contains)) {
+					$sameModelContains->inNodesUsed++;
+					$containsToAppend[$contains->getId()]->contains[$contains->modelClass] = $sameModelContains;
+					continue 2;
+				}
+			}
+
+			$cache[$contains->modelClass][$contains->getId()] = $contains;
+			$contains->inNodesUsed++;
+
+			foreach ($contains->contains as $modelContains) {
+				$containsToAppend[$modelContains->getId()] = $contains;
+				$queue[] = $modelContains;
+			}
+		}
 	}
 
 }

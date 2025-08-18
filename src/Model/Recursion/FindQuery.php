@@ -25,25 +25,40 @@ class FindQuery extends Query
 
 	private bool $isFirstSystem;
 
+	private array $activeContainsPath = [];
+
+	private bool $isInContainsRecursion = false;
+
 	public function __construct(array $fullContains, bool $isFirstSystem)
 	{
-		bdump($fullContains);
 		$this->contains = Contains::create($fullContains);
+		bdump($this->contains, 'FINAL Contains');
 		$this->isFirstSystem = $isFirstSystem;
 		$this->cache = new Cache();
-		bdump($this->contains);
 	}
 
 	public function findStart(string $modelClass)
     {
 		$this->start($modelClass);
 		// Volání $this->getFullContains() zároveň musí být pro init
-		$this->cache->setCache($this->getFullContains());
+		$fullContains = $this->getFullContains();
+		if ( ! $this->isInContainsRecursion && in_array($fullContains, $this->activeContainsPath, true)) {
+			$this->isInContainsRecursion = true;
+			$this->addModelEndCallback(function () {
+				$this->isInContainsRecursion = false;
+			});
+		}
+		if ($this->isInContainsRecursion || in_array($fullContains, $this->activeContainsPath, true)) {
+			$fullContains->inNodesUsed++;
+		}
+		$this->activeContainsPath[] = $fullContains;
+		$this->cache->setCache($fullContains);
     }
 
     public function findEnd(): bool
     {
 		array_pop($this->activeContains);
+		array_pop($this->activeContainsPath);
 		return $this->end();
     }
 
@@ -63,6 +78,39 @@ class FindQuery extends Query
 		return false;
 	}
 
+	public function isInContainsRecursion(): bool
+	{
+		return $this->isInContainsRecursion;
+	}
+
+
+	public function isChildModelInContainsRecursion(string $childModelClass): bool
+	{
+		if ($this->isInContainsRecursion()) {
+			return true;
+		}
+		$contains = $this->getFullContains();
+		if ( ! isset($contains->contains[$childModelClass])) {
+			throw new \InvalidArgumentException("'$childModelClass' is not in contains of $contains->modelClass.");
+		}
+
+		return $contains->contains[$childModelClass] === $contains;
+	}
+
+
+	public function isInSelfContainsRecursion(): bool
+	{
+		$activeContainsPath = $this->activeContainsPath;
+		array_pop($activeContainsPath);
+		return in_array($this->getFullContains(), $activeContainsPath, true);
+	}
+
+
+	/**
+	 * @param Contains|null $contains
+	 * @return bool
+	 * @deprecated todo asi shit smazat
+	 */
 	public function isRecursionToSelfEndless(?Contains $contains = null): bool
 	{
 		$contains = $contains ?? $this->getFullContains();
@@ -96,7 +144,7 @@ class FindQuery extends Query
 
 	public function getEntityCache(?Contains $contains = null): EntityCache
 	{
-		return $this->cache->getCache($contains ?? $this->getFullContains());
+		return $this->cache->getEntityCache($contains ?? $this->getFullContains());
 	}
 
 	public function getStash(?Contains $contains = null): Stash

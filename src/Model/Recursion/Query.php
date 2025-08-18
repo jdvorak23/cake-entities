@@ -12,23 +12,39 @@ class Query
 
 	public array $onEnd = [];
 
+	private array $onModelEnd = [];
+
 
 	public function start(string $modelClass)
 	{
 		$this->path[] = $modelClass;
 		$this->activePath[] = $modelClass;
+		$this->onModelEnd[] = [];
 	}
 
 
-	public function end(): bool
+	public function end(... $params): bool
 	{
 		array_pop($this->activePath);
+		$callbacks = array_pop($this->onModelEnd);
+		Arrays::invoke($callbacks);
 		$isEnd = ! $this->activePath;
 		if ($isEnd) {
-			Arrays::invoke($this->onEnd);
+			Arrays::invoke($this->onEnd, ...$params);
 		}
 
 		return $isEnd;
+	}
+
+	public function addModelEndCallback(callable $callback)
+	{
+		$this->onModelEnd[array_key_last($this->onModelEnd)][] = $callback;
+	}
+
+
+	public function isOriginalCall(): bool
+	{
+		return count($this->activePath) < 2;
 	}
 
 
@@ -53,9 +69,13 @@ class Query
 		return ! in_array($this->getCurrentModelClass(), $activePath, true);
 	}
 
-
-	public function isOriginalCall(): bool
+	public function isPreviousModelTheSame(): bool
 	{
-		return count($this->activePath) < 2;
+		if ($this->isOriginalCall()) {
+			return false;
+		}
+		$index = array_key_last($this->activePath);
+		return $this->activePath[$index] === $this->activePath[$index - 1];
 	}
+
 }

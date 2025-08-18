@@ -41,7 +41,12 @@ class Cache
 		$this->cache[$contains->modelClass][$contains->getId()] = new EntityCache($contains, $this->cache[$contains->modelClass]['stash']);
 	}
 
-	public function getCache(Contains $contains): EntityCache
+	public function getCache(): array
+	{
+		return $this->cache;
+	}
+
+	public function getEntityCache(Contains $contains): EntityCache
 	{
 		if ( ! isset($this->cache[$contains->modelClass][$contains->getId()])) {
 			$this->setCache($contains);

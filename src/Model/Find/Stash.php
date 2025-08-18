@@ -13,7 +13,7 @@ class Stash
 		$id = $entity->getPrimary();
 		if (isset($this->cache[$id])) {
 			// Přepisujeme? asi  by se ani nemělo stávat
-			bdump($entity === $this->cache[$id], "Přepis entity");
+			bdump($entity === $this->cache[$id], "Přepis entity !!!");
 			$this->cache[$id] = $entity;
 			return;
 		}

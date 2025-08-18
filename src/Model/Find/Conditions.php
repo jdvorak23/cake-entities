@@ -46,6 +46,7 @@ class Conditions
 			} else if ($lowerKey === 'not') {
 				$instance->not = self::create($condition);
 			} else {
+				// todo $key??
 				$instance->keyConditions[$key] = $condition;
 			}
 		}

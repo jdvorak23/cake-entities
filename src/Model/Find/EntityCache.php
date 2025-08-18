@@ -15,6 +15,14 @@ class EntityCache
 	private /*todo*/ $model;
 	private string $primaryKey;
 
+	/**
+	 * První klíč je název sloupce (~vazebního)
+	 * Druhý klíč je hodnota tohoto sloupce
+	 * Třetí pole je pole nalezených entit, odpovídající dané hodnotě ~vazebního sloupce, klíč je vždy id entity
+	 *
+	 * Tedy pokud první klíč bude 'parent_id', druhý klíč bude 1, tak to bude obsahovat všechny entity, které mají `parent_id` = 1
+	 * @var array[][][]
+	 */
 	private array $cache = [];
 
 	private array $onAdd = [];
@@ -35,9 +43,15 @@ class EntityCache
 	}
 
 
-	public function add(CakeEntity $entity)
+	public function add(CakeEntity $entity, ?array $indexOnlyColumns = null)
 	{
-		foreach (array_keys($this->cache) as $column) {
+		if ($indexOnlyColumns === null) {
+			$columns = array_keys($this->cache);
+		} else {
+			$indexOnlyColumns[] = $this->primaryKey;
+			$columns = array_intersect_key(array_keys($this->cache), array_flip($indexOnlyColumns));
+		}
+		foreach ($columns as $column) {
 			$this->indexEntity($entity, $column);
 		}
 		$this->stash->add($entity);
@@ -54,6 +68,13 @@ class EntityCache
 		return false;
 	}
 
+
+	/**
+	 * Pokud ještě neexistuje index pro danou hodnotu sloupce, je vytvořen
+	 * @param string $column
+	 * @param $value
+	 * @return bool Jestli byl vytvořen
+	 */
 	public function startIndexValue(string $column, $value): bool
 	{
 		if ( ! isset($this->cache[$column][$value])) {
@@ -64,14 +85,23 @@ class EntityCache
 		return false;
 	}
 
-	public function indexEntities(string $column)
+	public function indexEntities(string $column, ?array $ids = null)
 	{
 		if ($this->primaryKey === $column) {
 			return;
 		}
-		foreach ($this->getEntitiesByPrimary() as $entity) {
-			$this->indexEntity($entity, $column);
+		if ($ids === null) {
+			foreach ($this->getEntitiesByPrimary() as $entity) {
+				$this->indexEntity($entity, $column);
+			}
+		} else {
+			foreach ($ids as $id) {
+				if ($entity = $this->getEntity($id)) {
+					$this->indexEntity($entity, $column);
+				}
+			}
 		}
+
 	}
 
 	public function getEntity($value, ?string $column = null): ?CakeEntity
@@ -130,7 +160,7 @@ class EntityCache
 	}
 
 
-	private function indexEntity(CakeEntity $entity, string $column)
+	public function indexEntity(CakeEntity $entity, string $column)
 	{
 		$columnProperty = $this->getColumnProperties()[$column];
 		$value = $columnProperty->property->getValue($entity);
