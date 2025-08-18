@@ -43,16 +43,21 @@ class EntityCache
 	}
 
 
-	public function add(CakeEntity $entity, ?array $indexOnlyColumns = null)
+	public function add(CakeEntity $entity, array $preparedIndexes = [], ?array $indexOnlyColumns = null)
 	{
 		if ($indexOnlyColumns === null) {
 			$columns = array_keys($this->cache);
 		} else {
-			$indexOnlyColumns[] = $this->primaryKey;
-			$columns = array_intersect_key(array_keys($this->cache), array_flip($indexOnlyColumns));
+			foreach ($indexOnlyColumns as $index) {
+				// Pokud nebyl vytvořen index, vytvoří se TODO
+				$this->addIndex($index);
+			}
+			$indexOnlyColumns[] = $this->primaryKey; // Vždy
+			$columns = array_intersect(array_keys($this->cache), $indexOnlyColumns);
 		}
+
 		foreach ($columns as $column) {
-			$this->indexEntity($entity, $column);
+			$this->indexEntity($entity, $column, in_array($column, $preparedIndexes, true));
 		}
 		$this->stash->add($entity);
 
@@ -160,13 +165,18 @@ class EntityCache
 	}
 
 
-	public function indexEntity(CakeEntity $entity, string $column)
+	public function indexEntity(CakeEntity $entity, string $column, bool $onlyPrepared = false)
 	{
 		$columnProperty = $this->getColumnProperties()[$column];
 		$value = $columnProperty->property->getValue($entity);
 		if ($value === null) {
 			// nully nejsou v indexu
 			return;
+		}
+		if ($column !== $this->primaryKey && $onlyPrepared) {
+			if ( ! isset($this->cache[$column][$value])) {
+				return;
+			}
 		}
 		if ( ! isset($this->cache[$column][$value][$entity->getPrimary()])) {
 			$this->cache[$column][$value][$entity->getPrimary()] = $entity;

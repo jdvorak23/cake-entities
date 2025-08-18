@@ -8,33 +8,31 @@ class Stash
 {
 	private array $cache = [];
 
+	private bool $sorted = false;
+
 	public function add(CakeEntity $entity)
 	{
 		$id = $entity->getPrimary();
 		if (isset($this->cache[$id])) {
-			// Přepisujeme? asi  by se ani nemělo stávat
-			bdump($entity === $this->cache[$id], "Přepis entity !!!");
-			$this->cache[$id] = $entity;
+			// Přepisujeme? asi  by se ani nemělo stávat / určitě ... ?
+			if ($entity !== $this->cache[$id]) {
+				bdump($entity !== $this->cache[$id], "Přepis entity BUUUUUUUUUUUUUUUUUUUUUUUUUu !!!");
+				bdump($this->cache[$id]);
+				bdump($entity);
+			}
 			return;
 		}
-		$cache = [];
-		$appended = false;
-		foreach ($this->cache as $otherId => $otherEntity) {
-			if ($otherId > $id) {
-				$appended = true;
-				$cache[$id] = $entity;
-			}
-			$cache[$otherId] = $otherEntity;
-		}
-		if ( ! $appended) {
-			$cache[$id] = $entity;
-		}
-
-		$this->cache = $cache;
+		$this->cache[$id] = $entity;
+		$this->sorted = false;
 	}
 
 	public  function &getCache(): array
 	{
+		if ( ! $this->sorted) {
+			ksort($this->cache);
+			$this->sorted = true;
+		}
+
 		return $this->cache;
 	}
 }

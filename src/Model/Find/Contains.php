@@ -37,11 +37,18 @@ class Contains
 	public function skipUse(): void
 	{
 		$this->inNodesUsed--;
+		if ($this->inNodesUsed < 0) {
+			exit;
+		}
 	}
 
 	public function afterFind(): void
 	{
 		$this->inNodesUsed--;
+		if ($this->inNodesUsed < 0) {
+			bdump('afterFind');
+			exit;
+		}
 		$this->nextUsedIndexes = [];
 	}
 
@@ -50,7 +57,12 @@ class Contains
 		$this->nextUsedIndexes[$index] = $index;
 	}
 
-	public function getNextUsedIndexes(): array
+	public function removeNextUsedIndex(string $index): void
+	{
+		unset($this->nextUsedIndexes[$index]);
+	}
+
+		public function getNextUsedIndexes(): array
 	{
 		return $this->nextUsedIndexes;
 	}
@@ -179,7 +191,10 @@ class Contains
 			/** @var static $sameModelContains */
 			foreach ($cache[$contains->modelClass] ?? [] as $sameModelContains) {
 				if ($sameModelContains->isEqualTo($contains)) {
-					$sameModelContains->inNodesUsed++;
+					if ($containsToAppend[$contains->getId()] !== $sameModelContains) {
+						// + node jenom když už to není rekurze
+						$sameModelContains->inNodesUsed++;
+					}
 					$containsToAppend[$contains->getId()]->contains[$contains->modelClass] = $sameModelContains;
 					continue 2;
 				}
