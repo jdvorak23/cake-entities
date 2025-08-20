@@ -28,8 +28,15 @@ class Cache
 			$cache = array_reverse($cache, true);
 			foreach ($cache as $containsId => $entityCache) {
 				if ($contains->params->isEqualTo($entityCache->contains->params)) {
-					$newCache = clone $entityCache;
-					$newCache->contains = $contains;
+					// todo wtf
+					bdump('CLONIN');
+					$newCache = new EntityCache($contains, $this->cache[$contains->modelClass]['stash']);
+					$newCache->setCache($entityCache->getCache());
+				//	$newCache->getCache() =
+					/*$newCache = clone $entityCache;
+					$newCache->contains = $contains;*/
+					bdump($newCache);
+					//exit;
 					$this->cache[$contains->modelClass][$contains->getId()] = $newCache;
 					return;
 				}

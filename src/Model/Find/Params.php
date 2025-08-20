@@ -67,9 +67,9 @@ class Params
 	 */
 	public $callbacks = true;
 
-	public static function create(array $params): self
+	public static function create(array $params = []): self
 	{
-		$instance = new self();
+		$instance = new static();
 
 		if ( ! empty($params['conditions'])) {
 			$instance->setConditions($params['conditions']);

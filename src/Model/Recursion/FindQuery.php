@@ -49,6 +49,9 @@ class FindQuery extends Query
 			});
 		}
 		if ($this->isInContainsRecursion || in_array($fullContains, $this->activeContainsPath, true)) {
+			if ( ! $this->isInContainsRecursion && in_array($fullContains, $this->activeContainsPath, true)) {
+				bdump($this, 'COZEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE XXXXXXXXXXXXXXx');
+			}
 			$fullContains->inNodesUsed++;
 		}
 		$this->activeContainsPath[] = $fullContains;
@@ -94,7 +97,12 @@ class FindQuery extends Query
 			throw new \InvalidArgumentException("'$childModelClass' is not in contains of $contains->modelClass.");
 		}
 
-		return $contains->contains[$childModelClass] === $contains;
+		if ($contains->contains[$childModelClass] === $contains) {
+			// Pro urychlení
+			return true;
+		}
+
+		return in_array($contains->contains[$childModelClass], $this->activeContainsPath, true);
 	}
 
 

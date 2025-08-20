@@ -13,6 +13,8 @@ class Contains
 
 	public Params $params;
 
+	public FindConditions $conditions;
+
 	public string $modelClass;
 
 	public int $inNodesUsed = 0;
@@ -22,6 +24,16 @@ class Contains
 	public function __construct(string $modelClass)
 	{
 		$this->modelClass = $modelClass;
+	}
+
+	public function getConditions(): FindConditions
+	{
+		return $this->conditions ??= new FindConditions();
+	}
+
+	public function setConditions(FindConditions $conditions): void
+	{
+		$this->conditions = $conditions;
 	}
 
 	public function hasNU1(): bool
@@ -96,14 +108,20 @@ class Contains
 		if ($contains[$modelClass]['contains'] === null) {
 			// null znamená, že jsme v 'rekurzi', tj. v přímé cestě 'nahoru' už je stejný contains => přiřadíme
 			$index = array_search($modelClass, $query->activePath, true);
+			$containsObj = $pathCache[$index];
+			if ($containsObj !== null) {
+
+			}
 			$query->end(); // Zde query určitě není nikdy na konci (vždy false)
 			return $pathCache[$index];
 		}
 
-		$pathCache[] = $instance = new self($modelClass);
+		$instance = new self($modelClass);
+		$pathCache[] = $instance;
 		$params = $contains[$modelClass];
 		unset($params['contains']);
 		$instance->params = Params::create($params);
+		$instance->conditions = FindConditions::create();
 
 		foreach ($contains[$modelClass]['contains'] as $containedModelClass => $modelContains) {
 			$instance->contains[$containedModelClass] = self::create([$containedModelClass => $modelContains]);
@@ -171,7 +189,6 @@ class Contains
 		$query->end();
 		return true;
 	}
-
 
 
 

@@ -4,6 +4,7 @@ namespace Cesys\CakeEntities\Model\Find;
 
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Cesys\CakeEntities\Model\Entities\ColumnProperty;
+use Cesys\CakeEntities\Model\EntityAppModelTrait;
 use Cesys\CakeEntities\Model\GetModelTrait;
 use Cesys\Utils\Arrays;
 
@@ -12,6 +13,9 @@ class EntityCache
 	use GetModelTrait;
 	public Contains $contains;
 
+	/**
+	 * @var EntityAppModelTrait
+	 */
 	private /*todo*/ $model;
 	private string $primaryKey;
 
@@ -36,10 +40,6 @@ class EntityCache
 		$this->primaryKey = $this->model->primaryKey;
 		$this->createIndex($this->primaryKey);
 		$this->stash = $stash;
-		/*if ($stashCache && $contains === $stashCache->contains) {
-			bdump("ff");
-			$this->cache[$this->primaryKey] = $stashCache->cache[$this->primaryKey];
-		}*/
 	}
 
 
@@ -49,7 +49,7 @@ class EntityCache
 			$columns = array_keys($this->cache);
 		} else {
 			foreach ($indexOnlyColumns as $index) {
-				// Pokud nebyl vytvořen index, vytvoří se TODO
+				// Pokud nebyl vytvořen index, vytvoří se TODO uz jen sameEnts
 				$this->addIndex($index);
 			}
 			$indexOnlyColumns[] = $this->primaryKey; // Vždy
@@ -75,7 +75,7 @@ class EntityCache
 
 
 	/**
-	 * Pokud ještě neexistuje index pro danou hodnotu sloupce, je vytvořen
+	 * Pokud ještě neexistuje index pro danou hodnotu sloupce, je vytvořen, tj. "pro začátek" je tam 0 prvků a čeká se, co dosype find
 	 * @param string $column
 	 * @param $value
 	 * @return bool Jestli byl vytvořen
@@ -90,7 +90,7 @@ class EntityCache
 		return false;
 	}
 
-	public function indexEntities(string $column, ?array $ids = null)
+	/*public function indexEntities(string $column, ?array $ids = null)
 	{
 		if ($this->primaryKey === $column) {
 			return;
@@ -106,9 +106,13 @@ class EntityCache
 				}
 			}
 		}
+	}*/
 
-	}
-
+	/**
+	 * @param $value
+	 * @param string|null $column
+	 * @return CakeEntity|null
+	 */
 	public function getEntity($value, ?string $column = null): ?CakeEntity
 	{
 		if ($column === null) {
@@ -132,13 +136,24 @@ class EntityCache
 		return $this->cache[$column][$value] ?? [];
 	}
 
+
 	public function getEntitiesByPrimary(): array
 	{
-		// todo blbe orderasi
+		// todo blbe orderasi, vzit z indexu
 		return array_intersect_key($this->stash->getCache(), $this->cache[$this->primaryKey]);
 	}
 
-	public function getCache(?string $column = null): ?array
+	public function &getCache(): ?array
+	{
+		return $this->cache;
+	}
+
+	public function setCache(array &$cache): void
+	{
+		$this->cache = &$cache;
+	}
+
+	public function getCacheByColumn(?string $column = null): ?array
 	{
 		if ($column === null) {
 			$column = $this->primaryKey;
@@ -197,6 +212,7 @@ class EntityCache
 	{
 		$this->cache[$column] = [];
 	}
+
 
 	/**
 	 * @return ColumnProperty[]

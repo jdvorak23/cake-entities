@@ -2,13 +2,9 @@
 
 namespace Cesys\CakeEntities\Model\Find;
 
-class Conditions
+class FindConditions
 {
-	public ?Conditions $or = null;
-
-	public ?Conditions $and = null;
-
-	public ?Conditions $not = null;
+	public ?FindConditions $or = null;
 
 	/**
 	 * @var array<string, mixed>
@@ -20,33 +16,20 @@ class Conditions
 	 */
 	public array $stringConditions = [];
 
-	/**
-	 * @var Conditions[]
-	 */
-	public array $innerConditions = [];
-
 	public static function create(array $conditions = []): self
 	{
 		$instance = new self();
 		foreach ($conditions as $key => $condition) {
 			if (is_int($key)) {
-				// Klíč je číslo, tj. buď string nebo vnořená
-				if (is_array($condition)) {
-					$instance->innerConditions[] = self::create($condition);
-				} else {
-					$instance->stringConditions[] = $condition;
-				}
+				// Klíč je číslo, vnořená se ve find nepoužívá
+				$instance->stringConditions[] = $condition;
 				continue;
 			}
 			$lowerKey = strtolower($key);
 			if ($lowerKey === 'or') {
 				$instance->or = self::create($condition);
-			} else if ($lowerKey === 'and') {
-				$instance->and = self::create($condition);
-			} else if ($lowerKey === 'not') {
-				$instance->not = self::create($condition);
 			} else {
-				// todo $key??
+				// And ani not find nepoužívá
 				$instance->keyConditions[$key] = $condition;
 			}
 		}
@@ -62,21 +45,20 @@ class Conditions
 		if ($this->or && ! $this->or->isEmpty()) {
 			$params['OR'] = $this->or->toArray();
 		}
-		if ($this->and) {
-			$params['AND'] = $this->and->toArray();
-		}
-		if ($this->not) {
-			$params['NOT'] = $this->not->toArray();
-		}
 
 		foreach ($this->stringConditions as $stringCondition) {
 			$params[] = $stringCondition;
 		}
 
-		foreach ($this->innerConditions as $condition) {
-			$params[] = $condition->toArray();
-		}
 		return $params;
+	}
+
+
+	public function clear(): void
+	{
+		$this->keyConditions = [];
+		$this->stringConditions = [];
+		$this->or && $this->or->clear();
 	}
 
 	public function getOr(): self
@@ -99,9 +81,6 @@ class Conditions
 	{
 		return empty($this->keyConditions)
 			&& empty($this->stringConditions)
-			&& empty($this->innerConditions) // todo
-			&& ($this->or === null || $this->or->isEmpty())
-			&& ($this->and === null || $this->and->isEmpty())
-			&& ($this->not === null || $this->not->isEmpty());
+			&& ($this->or === null || $this->or->isEmpty());
 	}
 }
