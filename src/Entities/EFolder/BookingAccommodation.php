@@ -2,10 +2,10 @@
 
 namespace Cesys\CakeEntities\Entities\EFolder;
 
-use Cesys\CakeEntities\Entities\Glob\EFolder\Country;
 use Cesys\CakeEntities\Entities\Glob\EFolder\Destination;
 use Cesys\CakeEntities\Entities\Glob\EFolder\Supermaster;
 use Cesys\CakeEntities\Entities\Server\EFolder\Boarding;
+use Cesys\CakeEntities\Entities\Server\EFolder\Country;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 
 class BookingAccommodation extends CakeEntity

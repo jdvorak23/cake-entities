@@ -75,7 +75,7 @@ class Folder extends CakeEntity
 	{
 		$list = [];
 		foreach ($this->processNumbers as $processNumber) {
-			$list[$processNumber->id] = $processNumber->number;
+			$list[$processNumber->id] = "$processNumber->number ({$processNumber->supplier->brand})";
 		}
 		return $list;
 	}
@@ -141,7 +141,9 @@ class Folder extends CakeEntity
 	{
 		$fileInvoices = [];
 		foreach ($this->processNumbers as $processNumber) {
-			$fileInvoices += $processNumber->fileInvoices;
+			$processNumberFileInvoices = $processNumber->fileInvoices;
+			uasort($processNumberFileInvoices, fn(FileInvoice $a, FileInvoice $b) => $b->date <=> $a->date);
+			$fileInvoices += $processNumberFileInvoices;
 		}
 
 		return $fileInvoices;
@@ -155,8 +157,8 @@ class Folder extends CakeEntity
 	{
 		$invoices = [];
 		foreach ($this->reservations as $reservation) {
-			if ($reservation->invoice) {
-				$invoices[$reservation->invoice->id] = $reservation->invoice;
+			foreach ($reservation->invoices as $invoice) {
+				$invoices[$invoice->id] = $invoice;
 			}
 		}
 		foreach ($this->bookings as $booking) {
@@ -255,7 +257,7 @@ class Folder extends CakeEntity
 			if ( ! isset($totals[$transaction->fCurrencyId])) {
 				$totals[$transaction->fCurrencyId] = 0;
 			}
-			$totals[$transaction->fCurrencyId] += (float) $transaction->amount;
+			$totals[$transaction->fCurrencyId] = $transaction->fCurrency->round($totals[$transaction->fCurrencyId] + (float) $transaction->amount);
 		}
 		return $totals;
 	}
@@ -275,13 +277,13 @@ class Folder extends CakeEntity
 	public function getTransactionsIncomeActualTotal(): float
 	{
 		$total = 0;
-		$today = new DateTime('today');
 		foreach ($this->moneyTransactions as $transaction) {
-			if ( ! $transaction->isIncome || $transaction->date > $today) {
+			if ( ! $transaction->isIncome || $transaction->isProspective) {
 				continue;
 			}
 			$total += $transaction->getAmountInDefaultCurrency();
 		}
+
 		return $total;
 	}
 
@@ -326,11 +328,12 @@ class Folder extends CakeEntity
 			if ( ! isset($totals[$transaction->fCurrencyId])) {
 				$totals[$transaction->fCurrencyId] = 0;
 			}
-			$totals[$transaction->fCurrencyId] += (float) $transaction->amount;
 
+			$totals[$transaction->fCurrencyId] = $transaction->fCurrency->round($totals[$transaction->fCurrencyId] + (float) $transaction->amount);
 		}
 		return $totals;
 	}
+
 
 	public function getTransactionsExpensesTotal(): float
 	{
@@ -344,12 +347,12 @@ class Folder extends CakeEntity
 		return $total;
 	}
 
+
 	public function getTransactionsExpensesActualTotal(): float
 	{
 		$total = 0;
-		$today = new DateTime('today');
 		foreach ($this->moneyTransactions as $transaction) {
-			if ($transaction->isIncome || $transaction->date > $today) {
+			if ($transaction->isIncome || $transaction->isProspective) {
 				continue;
 			}
 			$total += $transaction->getAmountInDefaultCurrency();

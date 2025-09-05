@@ -70,11 +70,11 @@ class FInvoice extends CakeEntity
 
 	public ?string $addressName;
 
-	public $addressSubname;
+	public ?string $addressSubname;
 
 	public ?string $addressStreet;
 
-	public $addressStreetOther;
+	public ?string $addressStreetOther;
 
 	public ?string $addressPostcode;
 
@@ -91,8 +91,6 @@ class FInvoice extends CakeEntity
 	 * @var string|null
 	 */
 	public ?string $commissionNumber;
-
-	public $deliveryNoteNumber;
 
 	/**
 	 * Historicky u Delty číslo složky
@@ -112,45 +110,21 @@ class FInvoice extends CakeEntity
 
 	public ?string $constantSymbol;
 
-	public $disbursed;
-
-	public $disbursedDescription;
-
-	public $disbursedNumber;
-
 	public ?float $base;
 
 	public ?float $vat;
 
 	public ?float $totalPayment;
 
-	public $roundCount;
-
 	public ?float $round;
 
 	public ?float $totalRound;
 
-	public $currencyRate;
-
-	public $referenceCurrencyRate;
-
 	public ?string $pdfView;
-
-	public $filename;
-
-	public $hash;
-
-	public $canceled;
 
 	public bool $send;
 
-	public $remind;
-
 	public ?bool $active;
-
-	public $locked;
-
-	public $parentId;
 
 	public bool $qrInvoice;
 
@@ -198,7 +172,7 @@ class FInvoice extends CakeEntity
 	 * @param callable $exchangeRateCallback
 	 * @return void
 	 */
-	public function setExchangeRateCallback(callable $exchangeRateCallback)
+	public function setExchangeRateCallback(callable $exchangeRateCallback): void
 	{
 		$this->exchangeRateCallback = $exchangeRateCallback;
 	}
@@ -247,5 +221,20 @@ class FInvoice extends CakeEntity
 	public function getFullInvoiceNumber(): string
 	{
 		return "{$this->fInvoiceType->prefix}$this->number";
+	}
+
+
+	/**
+	 * "Znulovaná" faktura je taková faktura, která má všechny položky 0 (nejen totalRound)
+	 * @return bool
+	 */
+	public function isZeroInvoice(): bool
+	{
+		foreach ($this->fInvoiceItems as $item) {
+			if ( ! empty($item->total)) {
+				return false;
+			}
+		}
+		return true;
 	}
 }

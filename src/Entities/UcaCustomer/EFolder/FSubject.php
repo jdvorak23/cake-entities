@@ -11,9 +11,9 @@ class FSubject extends CakeEntity
 
 	public ?string $name;
 
-	public $supplier;
+	public ?bool $supplier;
 
-	public $customer;
+	public ?bool $customer;
 
 	public ?string $inumber;
 
@@ -39,11 +39,11 @@ class FSubject extends CakeEntity
 
 	public $registration;
 
-	public $guid;
+	public string $guid;
 
 	public ?string $specificSymbol;
 
-	public $taxpayer;
+	public bool $taxpayer;
 
 	public $tradesman;
 
@@ -51,7 +51,7 @@ class FSubject extends CakeEntity
 
 	public $note;
 
-	public $active;
+	public ?bool $active;
 
 	/**
 	 * @var FSubjectAddress id fSubjectId

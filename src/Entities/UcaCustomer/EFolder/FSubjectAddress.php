@@ -20,11 +20,15 @@ class FSubjectAddress extends CakeEntity
 
 	public ?string $street;
 
+	public ?string $houseNumber;
+
 	public ?string $streetOther;
 
 	public ?string $postcode;
 
 	public ?string $city;
+
+	public ?bool $active;
 
 	public FCountry $fCountry;
 
@@ -37,5 +41,14 @@ class FSubjectAddress extends CakeEntity
 	{
 		$zip = preg_replace('/\s+/', '', $this->postcode);
 		return trim($zip);
+	}
+
+	public function getFullStreet(): string
+	{
+		$street = (string) $this->street;
+		if ( ! $this->houseNumber) {
+			return $street;
+		}
+		return trim("$street $this->houseNumber");
 	}
 }

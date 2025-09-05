@@ -25,9 +25,11 @@ class FSubjectBank extends CakeEntity
 
 	public ?string $swift;
 
-	public $token;
+	public ?string $apiName;
 
-	public $active;
+	public ?string $token;
+
+	public ?bool $active;
 
 	public static function getModelClass(): string
 	{

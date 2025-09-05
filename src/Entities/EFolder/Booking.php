@@ -4,8 +4,8 @@ namespace Cesys\CakeEntities\Entities\EFolder;
 
 use Cesys\CakeEntities\Entities\EFolder\Interfaces\IBooking;
 use Cesys\CakeEntities\Entities\Glob\Currency;
-use Cesys\CakeEntities\Entities\Glob\EFolder\Country;
 use Cesys\CakeEntities\Entities\Glob\Uca\Airport;
+use Cesys\CakeEntities\Entities\Server\EFolder\Country;
 use Cesys\CakeEntities\Entities\Server\Uca\Transport;
 use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FSubject;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;

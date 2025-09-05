@@ -2,7 +2,7 @@
 
 namespace Cesys\CakeEntities\Entities\EFolder;
 
-use Cesys\CakeEntities\Entities\Glob\EFolder\Country;
+use Cesys\CakeEntities\Entities\Server\EFolder\Country;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Nette\Utils\DateTime;
 

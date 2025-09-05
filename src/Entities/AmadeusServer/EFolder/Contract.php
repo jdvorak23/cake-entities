@@ -12,6 +12,11 @@ class Contract extends CakeEntity
 
 	public ?int $reservationId;
 
+	public ?int $customerId;
+
+	public ?int $countryId;
+	public ?string $countryCode;
+
 	public ?string $tourOperatorName;
 
 	public ?string $travelAgencyName;
@@ -68,6 +73,7 @@ class Contract extends CakeEntity
 	 */
 	public ?string $paymentCurrency;
 
+	public ?int $contractVersion;
 
 	/**
 	 * @var Currency paymentCurrency code
@@ -122,7 +128,7 @@ class Contract extends CakeEntity
 
 	public function getPriceWithoutCommission(): float
 	{
-		return $this->getPrice() - $this->getCommission();
+		return $this->currency->round($this->getPrice() - $this->getCommission());
 	}
 
 	public function getDeposit(): float
@@ -153,5 +159,15 @@ class Contract extends CakeEntity
 	public function getTotalPaymentWithoutCommission(): float
 	{
 		return $this->getDepositWithoutCommission() + $this->getSupplementWithoutCommission();
+	}
+
+
+	public function getContractVersion(): int
+	{
+		if (empty($this->contractVersion)) {
+			return 1;
+		}
+
+		return $this->contractVersion;
 	}
 }

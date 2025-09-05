@@ -24,6 +24,11 @@ class InputTemplateProperty extends CakeEntity
      */
     public ?string $value;
 
+	public bool $prohibited;
+
+	public bool $significant;
+
+
     public ?DateTime $created;
 
     public ?DateTime $modified;
@@ -103,6 +108,12 @@ class InputTemplateProperty extends CakeEntity
 		return $hasError;
 	}
 
+
+	public function hasSignificantError(): bool
+	{
+		return $this->significant && $this->hasError();
+	}
+
 	/**
 	 * @param array|string|null $texts
 	 * @return
@@ -130,44 +141,52 @@ class InputTemplateProperty extends CakeEntity
 	public function findValue(string $text)
 	{
 		preg_match_all($this->templatePattern->pattern, $text, $matches);
+//bdump($matches);
 		$founds = $matches[1] ?? [];
 		$values = array_map(fn($item) => $this->templatePattern->convertValue($item), $founds);
-
 		if ( ! $values) {
-			if ($this->templateProperty->required) {
-				$this->hasError = true;
-			}
-			return null;
+			return $this->checkValue(null);
 		}
 
 		if ($this->templateProperty->isArray) {
-			return $values;
+			$checkedValues = [];
+			foreach ($values as $value) {
+				$checkedValues[] = $this->checkValue($value);
+			}
+			return $checkedValues;
 		} elseif (count($values) > 1) {
+			// Property není vedena jako isArray, ale přesto máme více výsledků => výsledek je null a automaticky error
 			$this->hasError = true;
-			/*bdump($values);
-			bdump($this->templatePattern);
-			throw new \Exception('Too many matches.');*/
-			return null;
-			//todo err;
+			return $this->checkValue(null);
 		}
 
-		$value = $this->value === null ? $values[0] : ($values[0] === $this->value ? $values[0] : null);
-
-		if ($value === null && $this->templateProperty->required) {
-			$this->hasError = true;
-		}
-
-		return $value;
+		// Zbývá pole s 1 prvkem
+		return $this->checkValue($values[0]);
 	}
 
 
-	public function getWithParents(): array
+	private function checkValue(?string $value): ?string
 	{
-		$result[$this->id] = $this;
-		if ($this->parent) {
-			$result = $result + $this->parent->getWithParents();
+		if ($this->value !== null && $value !== $this->value) {
+			// Je nastaveno, že má mít nějakou hodnotu, a tu hodnotu to nemá => null
+			$value = null;
 		}
-		return $result;
+
+		if ($value === null && $this->templateProperty->required) {
+			// Získání nějaké hodnoty je povinné a hodnota nezískána => error
+			$this->hasError = true;
+		}
+
+		if ($this->prohibited) {
+			// Je zakázáno získat hodnotu -> buď jakoukoli, nebo tu danou
+			if ($this->value === null && $value !== null) {
+				$this->hasError = true;
+			} elseif ($this->value !== null && $value === $this->value) {
+				$this->hasError = true;
+			}
+		}
+
+		return $value;
 	}
 
 }

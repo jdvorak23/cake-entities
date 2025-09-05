@@ -662,7 +662,7 @@ trait EntityAppModelTrait
      */
     public function paginateIds(array $paginateParams, array $conditions): array
     {
-        $paginateParams['conditions'] = $conditions; // todo?
+        $paginateParams['conditions'] = array_merge($paginateParams['conditions'] ?? [], $conditions); // todo?
         $paginateParams['fields'] = ["$this->alias.$this->primaryKey"];
 
         if (isset($paginateParams['contains'])) {

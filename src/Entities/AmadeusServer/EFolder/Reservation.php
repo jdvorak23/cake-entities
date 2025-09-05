@@ -3,7 +3,9 @@
 namespace Cesys\CakeEntities\Entities\AmadeusServer\EFolder;
 
 use Cesys\CakeEntities\Entities\AmadeusServer\Interfaces\IReservation;
+use Cesys\CakeEntities\Entities\EFolder\File;
 use Cesys\CakeEntities\Entities\EFolder\Invoice;
+use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FInvoice;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Nette\Utils\DateTime;
 
@@ -17,9 +19,19 @@ class Reservation extends CakeEntity implements IReservation
 
 	public ?int $customerId;
 
+	/**
+	 * ENUM
+	 * null => nějaká chyba, asi nějak špatně vytvořený řádek
+	 * Určuje stát cestovní agentury (partnera), nebo jinak stát UCA, tj. jaká doména
+	 * @var string|null
+	 */
+	public ?string $customerCountry;
+
 	public ?int $efFolderId;
 
-	public ?int $efProcessNumberId;
+	//public ?int $efProcessNumberId; todo smazat z db db @deprecated ???
+
+	public ?string $reservationStatus;
 
 	public ?string $paymentStatus;
 	
@@ -35,12 +47,18 @@ class Reservation extends CakeEntity implements IReservation
 	public string $firstname;
 
 	public string $surname;
-
+	
 	/**
 	 * Viz public constanty
 	 * @var string
 	 */
 	public string $paymentCollection;
+
+	/**
+	 * Toto si určíme, pokud chceme, aby večer cron vytvořil vydanou fakturu k rezervaci. Pokud tam je starší datum ned dnešní,
+	 * @var DateTime
+	 */
+	public ?DateTime $invoiceDate;
 
 	public DateTime $created;
 
@@ -50,9 +68,14 @@ class Reservation extends CakeEntity implements IReservation
 	public Contract $contract;
 
 	/**
-	 * @var ?Invoice id reservationId
+	 * @var Invoice[] reservationId
 	 */
-	public ?Invoice $invoice;
+	public array $invoices;
+
+	/**
+	 * @var File[] reservationId
+	 */
+	public array $signedContracts;
 
 	/**
 	 * Pomůcka pro uložení předchozího stavu, není sloupec, ručně
@@ -76,16 +99,6 @@ class Reservation extends CakeEntity implements IReservation
 	public function getClientName(): string
 	{
 		return trim(trim($this->firstname) . ' ' . trim($this->surname));
-	}
-
-
-	/**
-	 * @return Invoice|null
-	 * @deprecated
-	 */
-	public function getInvoice(): ?Invoice
-	{
-		return $this->invoice;
 	}
 
 
@@ -133,5 +146,17 @@ class Reservation extends CakeEntity implements IReservation
 	public function getTotalPayment(): float
 	{
 		return $this->getDeposit() + $this->getSupplement();
+	}
+
+	/**
+	 * @return FInvoice[]
+	 */
+	public function getFInvoices(): array
+	{
+		$fInvoices = [];
+		foreach ($this->invoices as $invoice) {
+			$fInvoices[$invoice->fInvoiceId] = $invoice->fInvoice;
+		}
+		return $fInvoices;
 	}
 }

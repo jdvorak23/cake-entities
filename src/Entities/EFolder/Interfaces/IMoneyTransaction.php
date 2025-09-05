@@ -11,13 +11,25 @@ interface IMoneyTransaction
 	public const MethodCard = 'card'; // Platba kartou
 	public const MethodCash = 'cash'; // Cash - pokladna
 	public const MethodVoucher = 'voucher'; // Poukázka nebo podobné
+	public const MethodRound = 'round';
 
-	public const MethodTypes = [
+	public const Methods = [
 		self::MethodTransfer => self::MethodTransfer,
 		self::MethodCard => self::MethodCard,
 		self::MethodCash => self::MethodCash,
 		self::MethodVoucher => self::MethodVoucher,
+		self::MethodRound => self::MethodRound,
 	];
+
+	/**
+	 * U výdajů 'voucher' a 'round' nemají smysl, ty jsou jen pro příjmy
+	 */
+	public const ExpenseMethods = [
+		self::MethodTransfer => self::MethodTransfer,
+		self::MethodCard => self::MethodCard,
+		self::MethodCash => self::MethodCash,
+	];
+
 
 	/**
 	 * Typy enum 'type'

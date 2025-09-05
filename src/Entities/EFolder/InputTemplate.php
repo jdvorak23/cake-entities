@@ -30,6 +30,8 @@ class InputTemplate extends CakeEntity
      */
     public array $properties;
 
+	protected bool $parsedInvoiceError = false;
+
 
 	public static function getModelClass(): string
 	{
@@ -39,25 +41,60 @@ class InputTemplate extends CakeEntity
 	/**
 	 * @return InputTemplateProperty[]
 	 */
-    public function getInputTemplateProperties(): array
+    public function getInputTemplateProperties(bool $sorted = true): array
     {
-		// Chceme mít na začátku ty s hodnotou, to jsou ty, které se (u stejného korporátu) jediné liší
+		$properties = $this->properties;
+		if (isset($this->parent)) {
+			$properties = $properties + $this->parent->getInputTemplateProperties(false);
+		}
+		if ( ! $sorted) {
+			return $properties;
+		}
+		// Na začátku chceme mít significant properties a pak ty co mají hodnotu, až poté ty bez hodnoty
 		// Tj. performance, aby se co nejrychleji vyloučily ty, co nechceme
+		$significant = [];
 		$withValue = [];
 		$rest = [];
-		foreach ($this->properties as $property) {
-			if ($property->value !== null) {
+		foreach ($properties as $property) {
+			if ($property->significant) {
+				$significant[$property->id] = $property;
+			} elseif ($property->value !== null) {
 				$withValue[$property->id] = $property;
 			} else {
 				$rest[$property->id] = $property;
 			}
 		}
-		$result = $withValue + $rest;
-		if (isset($this->parent)) {
-			$result = $result + $this->parent->getInputTemplateProperties();
-		}
-        return $result;
+		return $significant + $withValue + $rest;
     }
+
+
+	public function getSignificantInputTemplateProperties(): array
+	{
+		$properties = [];
+		foreach ($this->getInputTemplateProperties() as $property) {
+			if ( ! $property->significant) {
+				break;
+			}
+			$properties[$property->id] = $property;
+		}
+		return $properties;
+	}
+
+
+	public function getWithValueInputTemplateProperties(): array
+	{
+		$properties = [];
+		foreach ($this->getInputTemplateProperties() as $property) {
+			if ( ! $property->significant && ! $property->value) {
+				break;
+			}
+			if ( ! $property->significant && $property->value) {
+				$properties[$property->id] = $property;
+			}
+		}
+
+		return $properties;
+	}
 
 	/**
 	 * @param string $text
@@ -77,16 +114,35 @@ class InputTemplate extends CakeEntity
 		return true;
 	}
 
-
 	public function getErrorsCount(): int
 	{
 		$errorsCount = 0;
-		foreach ($this->getInputTemplateProperties() as $inputTemplateProperty) {
+		foreach ($this->getInputTemplateProperties(false) as $inputTemplateProperty) {
 			if ($inputTemplateProperty->hasError()) {
 				$errorsCount++;
 			}
 		}
 		return $errorsCount;
+	}
+
+	public function hasSignificantError(): bool
+	{
+		foreach ($this->getSignificantInputTemplateProperties() as $inputTemplateProperty) {
+			if ($inputTemplateProperty->hasSignificantError()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public function setParsedInvoiceError(): void
+	{
+		$this->parsedInvoiceError = true;
+	}
+
+	public function hasParsedInvoiceError(): bool
+	{
+		return $this->parsedInvoiceError;
 	}
 
 	public function getParentsBreadcrumbs(): string
@@ -109,17 +165,20 @@ class InputTemplate extends CakeEntity
 	 */
 	public function getInputTemplatePropertiesTree(): array
 	{
+		$significant = [];
 		$withValue = [];
 		$rest = [];
 		foreach ($this->properties as $property) {
-			if ($property->value !== null) {
+			if ($property->significant) {
+				$significant[$property->id] = $property;
+			} elseif ($property->value !== null) {
 				$withValue[$property->id] = $property;
 			} else {
 				$rest[$property->id] = $property;
 			}
 			$property->children = [];
 		}
-		$allProperties = $withValue + $rest;
+		$allProperties = $significant + $withValue + $rest;
 
 		$topProperties = [];
 		/** @var InputTemplateProperty $property */

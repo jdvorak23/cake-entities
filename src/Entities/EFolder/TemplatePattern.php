@@ -52,6 +52,7 @@ class TemplatePattern extends CakeEntity
 			$this->replacements = null;
 			return;
 		}
+		$replacements = str_replace('\n', "\n", $replacements);
 		$this->replacements = serialize($replacements);
 	}
 

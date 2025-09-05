@@ -2,17 +2,24 @@
 
 namespace Cesys\CakeEntities\Entities\EFolder;
 
+use Cesys\CakeEntities\Entities\EFolder\Interfaces\IFile;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
+use Cesys\Utils\Entities\FilePathInfo;
+use Cesys\Utils\FileSystemHelper;
 use Nette\Utils\DateTime;
 use Nette\Utils\FileSystem;
 
-class File extends CakeEntity
+class File extends CakeEntity implements IFile
 {
     public int $id;
 
 	public ?int $folderId;
 
 	public ?int $inputTemplateId;
+
+	public ?int $reservationId;
+
+	public ?string $label;
 
 	public string $dir;
 
@@ -23,6 +30,8 @@ class File extends CakeEntity
 	public ?string $mime;
 
 	public int $size;
+
+	public ?string $hash;
 
 	public bool $active;
 
@@ -39,12 +48,15 @@ class File extends CakeEntity
 
 	public ?InputTemplate $inputTemplate;
 
-	public Folder $folder;
+	public ?Folder $folder;
 
 	/**
 	 * @var ?FileInvoice id fileId
 	 */
 	public ?FileInvoice $fileInvoice;
+
+
+
 
     public string $path;
 
@@ -54,6 +66,7 @@ class File extends CakeEntity
 	protected $parsedInvoiceFactory;
 
 	protected $parsedInvoice;
+
 
 	public static function getModelClass(): string
 	{
@@ -78,9 +91,6 @@ class File extends CakeEntity
 		return $this->parsedInvoice ??= ($this->parsedInvoiceFactory)($this);
 	}
 
-
-
-
     public function getFullFilename(): string
 	{
 		$filename = $this->filename;
@@ -91,23 +101,39 @@ class File extends CakeEntity
 		return $filename;
 	}
 
+	public function getFullDir(): string
+	{
+		if ( ! isset($this->path) ) {
+			throw new \LogicException('Path is not set');
+		}
+		return Filesystem::joinPaths($this->path, $this->dir);
+	}
+
     public function getFullPath(): string
     {
         if ( ! isset($this->path) ) {
             throw new \LogicException('Path is not set');
         }
 
-        return Filesystem::joinPaths($this->path, $this->dir, $this->getFullFilename());
+        return Filesystem::joinPaths($this->getFullDir(), $this->getFullFilename());
     }
 
-	public function hasInvoiceOfType(int $fInvoiceTypeId): bool
+	public function getAttachedFilePathInfo(): FilePathInfo
 	{
-		foreach ($this->invoices as $invoice) {
-			if ($invoice->fInvoice->fInvoiceTypeId === $fInvoiceTypeId) {
-				return true;
-			}
+		$filePathInfo = FilePathInfo::createFromPath($this->getFullPath());
+		$filePathInfo->onChange[] = [$this, 'appendFromFilePathInfo'];
+		return $filePathInfo;
+	}
+
+	public function appendFromFilePathInfo(FilePathInfo $filePathInfo, bool $attach = false): void
+	{
+		$this->filename = $filePathInfo->getFilename();
+		$this->extension = $filePathInfo->getExtension();
+		// todo ověřit
+		$this->dir = FileSystemHelper::getRelativePath($this->path, $filePathInfo->getDirname());
+		if ($attach) {
+			$filePathInfo->onChange[] = [$this, 'appendFromFilePathInfo'];
 		}
-		return false;
 	}
 
 }

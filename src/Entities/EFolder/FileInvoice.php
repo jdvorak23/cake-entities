@@ -3,8 +3,6 @@
 namespace Cesys\CakeEntities\Entities\EFolder;
 
 use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FCurrency;
-use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FInvoice;
-use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FSubject;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Nette\Utils\DateTime;
 
@@ -16,9 +14,7 @@ class FileInvoice extends CakeEntity
 
 	public int $fCurrencyId;
 
-	public ?int $fileId;
-
-	public string $description;
+	public int $fileId;
 
 	public string $clientName;
 
@@ -39,6 +35,8 @@ class FileInvoice extends CakeEntity
 	public FCurrency $fCurrency;
 
 	public ProcessNumber $processNumber;
+
+	public File $file;
 
 	/**
 	 * @var Invoice[] fileInvoiceId
@@ -72,4 +70,20 @@ class FileInvoice extends CakeEntity
 		}
 		return false;
 	}
+
+
+	public function getInvoicesOfType(int $fInvoiceTypeId): array
+	{
+		$invoices = [];
+		foreach ($this->invoices as $invoice) {
+			if ($invoice->fInvoice->fInvoiceTypeId === $fInvoiceTypeId) {
+				$invoices[$invoice->id] = $invoice;
+			}
+		}
+
+		return $invoices;
+	}
+
+
+
 }
