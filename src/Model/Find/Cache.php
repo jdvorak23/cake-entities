@@ -2,67 +2,83 @@
 
 namespace Cesys\CakeEntities\Model\Find;
 
+use Cesys\CakeEntities\Model\GetModelTrait;
+
 class Cache
 {
+	use GetModelTrait;
 	/**
-	 * @var EntityCache[][]
+	 * @var ModelCache[]
 	 */
 	private array $cache = [];
 
-	public function setCache(Contains $contains)
+	private bool $useGlobalCache;
+
+	public function __construct(bool $useGlobalCache)
 	{
-		if ( ! isset($this->cache[$contains->modelClass])) {
-			// První cache modelu, vytvoří se stash
-			$this->cache[$contains->modelClass]['stash'] = new Stash();
+		$this->useGlobalCache = $useGlobalCache;
+	}
+
+
+	public function getEntityCache(FindParams $findParams): EntityCache
+	{
+		if ($entityCache = $this->getModelCache($findParams->modelClass)->getEntityCache($findParams)) {
+			return $entityCache;
+		}
+		$this->setEntityCache($findParams);
+
+		return $this->getModelCache($findParams->modelClass)->getEntityCache($findParams);
+	}
+
+
+	public  function getModelCache(string $modelClass): ModelCache
+	{
+		return $this->cache[$modelClass] ??= new ModelCache($modelClass);
+	}
+
+
+	private function setEntityCache(FindParams $findParams): void
+	{
+		$modelCache = $this->getModelCache($findParams->modelClass);
+		foreach ($modelCache->getCache() as $entityCache) {
+			if ($findParams->isCacheCompatibleWith($entityCache->findParams)) {
+				$modelCache->addEntityCache(EntityCache::createFrom($entityCache, $findParams));
+				return;
+			}
 		}
 
-		if ($this->cache[$contains->modelClass][$contains->getId()] ?? null) {
-			// Pro sichr už existuje
-			return;
-		}
-
-		if (count($this->cache[$contains->modelClass]) > 1) {
-			// 'stash' index uz tam je, koukáme jestli je další
-			$cache = $this->cache[$contains->modelClass];
-			unset($cache['stash']);
-			$cache = array_reverse($cache, true);
-			foreach ($cache as $containsId => $entityCache) {
-				if ($contains->params->isEqualTo($entityCache->contains->params)) {
-					// todo wtf
-					bdump('CLONIN');
-					$newCache = new EntityCache($contains, $this->cache[$contains->modelClass]['stash']);
-					$newCache->setCache($entityCache->getCache());
-				//	$newCache->getCache() =
-					/*$newCache = clone $entityCache;
-					$newCache->contains = $contains;*/
-					bdump($newCache);
-					//exit;
-					$this->cache[$contains->modelClass][$contains->getId()] = $newCache;
+		if ($this->useGlobalCache) {
+			$globalCache = $this->getModel($findParams->modelClass)->getModelCache();
+			/** @var EntityCache $entityCache */
+			foreach (array_reverse($globalCache->getCache(), true) as $entityCache) {
+				if ($findParams->isCacheCompatibleWith($entityCache->findParams)) {
+					$modelCache->addEntityCache(EntityCache::createFrom($entityCache, $findParams));
 					return;
 				}
 			}
 		}
 
+		/*if ($globalModelCache = $this->globalCache[$findParams->modelClass] ?? null) {
+			foreach (array_reverse($globalModelCache->getCache(), true) as $entityCache) {
+				if ($findParams->isCacheCompatibleWith($entityCache->findParams)) {
+					$modelCache->addEntityCache(EntityCache::createFrom($entityCache, $findParams));
+					return;
+				}
+			}
+		}*/
 
-
-		$this->cache[$contains->modelClass][$contains->getId()] = new EntityCache($contains, $this->cache[$contains->modelClass]['stash']);
+		$modelCache->addEntityCache(new EntityCache($findParams));
 	}
+
+
+	/*public function getModelCache(string $modelClass): array
+	{
+		return $this->cache[$modelClass] ?? [];
+	}*/
 
 	public function getCache(): array
 	{
 		return $this->cache;
 	}
 
-	public function getEntityCache(Contains $contains): EntityCache
-	{
-		if ( ! isset($this->cache[$contains->modelClass][$contains->getId()])) {
-			$this->setCache($contains);
-		}
-		return $this->cache[$contains->modelClass][$contains->getId()];
-	}
-
-	public function getStash(Contains $contains): Stash
-	{
-		return $this->cache[$contains->modelClass]['stash'];
-	}
 }

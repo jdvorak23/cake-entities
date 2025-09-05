@@ -2,78 +2,88 @@
 
 namespace Cesys\CakeEntities\Model\Recursion;
 
-use Cesys\CakeEntities\Model\Entities\CakeEntity;
-use Cesys\CakeEntities\Model\Entities\EntityHelper;
 use Cesys\CakeEntities\Model\Find\Cache;
-use Cesys\CakeEntities\Model\Find\Contains;
+use Cesys\CakeEntities\Model\Find\CakeParams;
+use Cesys\CakeEntities\Model\Find\FindParams;
 use Cesys\CakeEntities\Model\Find\EntityCache;
-use Cesys\CakeEntities\Model\Find\Stash;
 
 /**
  * @internal
  */
 class FindQuery extends Query
 {
-	public Contains $contains;
+	public FindParams $findParams;
 
 	/**
-	 * @var Contains[]
+	 * Params původního uživatelova volání
+	 * Nemusí existovat, pokud první volání je systémové (přes getEntities)
+	 * @var CakeParams
 	 */
-	public array $activeContains = [];
+	private CakeParams $originalParams;
 
 	public Cache $cache;
 
-	private bool $isFirstSystem;
+	/**
+	 * @var FindParams[]
+	 */
+	private array $activeFindParamsPath = [];
 
-	private array $activeContainsPath = [];
+	private bool $isInFindParamsRecursion = false;
 
-	private bool $isInContainsRecursion = false;
+	public bool $useCache;
 
-	public function __construct(array $fullContains, bool $isFirstSystem)
+	public function __construct(array $fullContains, bool $useCache, ?CakeParams $originalParams = null)
 	{
-		$this->contains = Contains::create($fullContains);
-		bdump($this->contains, 'FINAL Contains');
-		$this->isFirstSystem = $isFirstSystem;
-		$this->cache = new Cache();
+		$this->useCache = $useCache;
+		if ($originalParams !== null) {
+			$this->originalParams = $originalParams;
+		}
+		$this->findParams = FindParams::create($fullContains, $useCache);
+	//bdump($this->findParams, 'FINAL Contains');
+		$this->cache = new Cache($useCache);
 	}
 
-	public function findStart(string $modelClass)
+	public function findStart(string $modelClass, ?callable $endCallback = null)
     {
-		$this->start($modelClass);
-		// Volání $this->getFullContains() zároveň musí být pro init
-		$fullContains = $this->getFullContains();
-		if ( ! $this->isInContainsRecursion && in_array($fullContains, $this->activeContainsPath, true)) {
-			$this->isInContainsRecursion = true;
-			$this->addModelEndCallback(function () {
-				$this->isInContainsRecursion = false;
+		$this->start($modelClass, $endCallback);
+		Timer::start($modelClass . count($this->path));
+		$findParams = $this->getFindParamsInPath();
+		// Do $activeFindParamsPath připřadíme až poté, při vyhledávání isInFindParamsRecursion potřebujeme activeFindParamsPath ještě bez přidaných FindParams
+		$isStartingRecursion = ! $this->isInFindParamsRecursion && in_array($findParams, $this->activeFindParamsPath, true);
+
+		if ($this->isInFindParamsRecursion || $isStartingRecursion) {
+			// Pokud jsme v rekurzi, bude model použit +1krát
+			$findParams->willBeUsed++;
+		}
+
+		if ($isStartingRecursion) {
+			$this->isInFindParamsRecursion = true;
+			$this->addModelEndCallback(function () use ($findParams) {
+				$this->isInFindParamsRecursion = false;
 			});
 		}
-		if ($this->isInContainsRecursion || in_array($fullContains, $this->activeContainsPath, true)) {
-			if ( ! $this->isInContainsRecursion && in_array($fullContains, $this->activeContainsPath, true)) {
-				bdump($this, 'COZEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE XXXXXXXXXXXXXXx');
-			}
-			$fullContains->inNodesUsed++;
-		}
-		$this->activeContainsPath[] = $fullContains;
-		$this->cache->setCache($fullContains);
+		$this->activeFindParamsPath[] = $findParams;
+		//bdump("dd");
+//$this->cache->setEntityCache($findParams); todo asi neni potreba getter zinit?
     }
 
     public function findEnd(): bool
     {
-		array_pop($this->activeContains);
-		array_pop($this->activeContainsPath);
+		Timer::stop();
+		array_pop($this->activeFindParamsPath);
 		return $this->end();
     }
 
 	public function isSystemCall(): bool
 	{
-		return ! $this->isOriginalCall() || $this->isFirstSystem;
+		// Pokud nejsou setnuté $originalParams, je i první volání systémové
+		return ! $this->isOriginalCall() || ! isset($this->originalParams);
 	}
 
-	public function isRecursiveToSelf(?Contains $contains = null): bool
+	public function containsSameModel(?FindParams $findParams = null): bool
 	{
-		$contains = $contains ?? $this->getFullContains();
-		if (isset($contains->contains[$contains->modelClass])) {
+		$findParams = $findParams ?? $this->getFindParams();
+		if (isset($findParams->contains[$findParams->modelClass])) {
 			// Rekurze do vl. tabulky
 			return true;
 		}
@@ -81,48 +91,39 @@ class FindQuery extends Query
 		return false;
 	}
 
-	public function isInContainsRecursion(): bool
+	public function isInFindParamsRecursion(): bool
 	{
-		return $this->isInContainsRecursion;
+		return $this->isInFindParamsRecursion;
 	}
 
 
-	public function isChildModelInContainsRecursion(string $childModelClass): bool
+	public function isChildModelInFindParamsRecursion(string $childModelClass): bool
 	{
-		if ($this->isInContainsRecursion()) {
+		if ($this->isInFindParamsRecursion()) {
 			return true;
 		}
-		$contains = $this->getFullContains();
-		if ( ! isset($contains->contains[$childModelClass])) {
-			throw new \InvalidArgumentException("'$childModelClass' is not in contains of $contains->modelClass.");
-		}
 
-		if ($contains->contains[$childModelClass] === $contains) {
+		$findParams = $this->getFindParams();
+		$childModelFindParams = $findParams->getContainedFindParams($childModelClass);
+		if ($childModelFindParams === $findParams) {
 			// Pro urychlení
 			return true;
 		}
 
-		return in_array($contains->contains[$childModelClass], $this->activeContainsPath, true);
-	}
-
-
-	public function isInSelfContainsRecursion(): bool
-	{
-		$activeContainsPath = $this->activeContainsPath;
-		array_pop($activeContainsPath);
-		return in_array($this->getFullContains(), $activeContainsPath, true);
+		return in_array($childModelFindParams, $this->activeFindParamsPath, true);
 	}
 
 
 	/**
-	 * @param Contains|null $contains
+	 * @param FindParams|null $findParams
 	 * @return bool
-	 * @deprecated todo asi shit smazat
+	 *  todo asi shit smazat
 	 */
-	public function isRecursionToSelfEndless(?Contains $contains = null): bool
+	public function isRecursiveToSelfEndlessCacheCompatible(?FindParams $findParams = null): bool
 	{
-		$contains = $contains ?? $this->getFullContains();
-		static $query;
+		$findParams = $findParams ?? $this->getFindParams();
+		return $findParams->isRecursiveToSelfEndlessCacheCompatible();
+		/*static $query;
 		static $pathCache;
 		if ( ! isset($query)) {
 			$query = new Query();
@@ -131,54 +132,70 @@ class FindQuery extends Query
 			};
 			$pathCache = [];
 		}
-		$query->start($contains->modelClass);
+		$query->start($findParams->modelClass);
 
-		if (isset($pathCache[$contains->getId()])) {
+		if (isset($pathCache[$findParams->getId()])) {
 			$query->end();
 			return true;
 		}
-		$pathCache[$contains->getId()] = true;
+		$pathCache[$findParams->getId()] = true;
 
-
-		if (empty($contains->contains[$contains->modelClass])) {
+		if ( ! $childFindParams = $findParams->contains[$findParams->modelClass] ?? null) {
 			$query->end();
 			return false;
 		}
 
-		$return = $this->isRecursionToSelfEndless($contains->contains[$contains->modelClass]);
-		$query->end();
-		return $return;
-	}
-
-	public function getEntityCache(?Contains $contains = null): EntityCache
-	{
-		return $this->cache->getEntityCache($contains ?? $this->getFullContains());
-	}
-
-	public function getStash(?Contains $contains = null): Stash
-	{
-		return $this->cache->getStash($contains ?? $this->getFullContains());
-	}
-
-
-	public function getFullContains(array $appendToPath = []): Contains
-	{
-		$firstCall = count($this->activePath) > count($this->activeContains);
-		if ($appendToPath || $firstCall) {
-			$contains = $this->contains;
-			$path = array_merge($this->activePath, (array_values($appendToPath)));
-			array_shift($path);
-			foreach ($path as $modelClass) {
-				$contains = $contains->contains[$modelClass];
-			}
-			if ($firstCall) {
-				$this->activeContains[$this->getCurrentModelClass()] = $contains;
-			}
-		} else {
-			$contains = $this->activeContains[$this->getCurrentModelClass()];
+		if ( ! $findParams->isCacheCompatibleWith($childFindParams)) {
+			$query->end();
+			return false;
 		}
 
-		return $contains;
+		$return = $this->isRecursiveToSelfEndlessCacheCompatible($childFindParams);
+		$query->end();
+		return $return;*/
+	}
+
+	public function getEntityCache(?FindParams $findParams = null): EntityCache
+	{
+		return $this->cache->getEntityCache($findParams ?? $this->getFindParams());
+	}
+
+
+	public function getOriginalParams(): CakeParams
+	{
+		return $this->originalParams;
+	}
+
+
+	/**
+	 * Vrátí část větve původních FindParams, které odpovídají aktuální cestě - nebo aktuální cestě + $appendToPath
+	 * Musí se volat poprvé ve findStart() ještě před
+	 * @param array $appendToPath
+	 * @return FindParams
+	 */
+	public function getFindParams(array $appendToPath = []): FindParams
+	{
+		if ($appendToPath) {
+			return $this->getFindParamsInPath($appendToPath);
+		}
+
+		return $this->activeFindParamsPath[array_key_last($this->activeFindParamsPath)];
+	}
+
+	/**
+	 * @param array $appendToPath
+	 * @return FindParams
+	 */
+	private function getFindParamsInPath(array $appendToPath = []): FindParams
+	{
+		$findParams = $this->findParams;
+		$path = array_merge($this->activePath, (array_values($appendToPath)));
+		array_shift($path);
+		foreach ($path as $modelClass) { // Todo mrknout jen na předchozí ??
+			$findParams = $findParams->getContainedFindParams($modelClass);
+		}
+
+		return $findParams;
 	}
 
 
@@ -187,12 +204,12 @@ class FindQuery extends Query
 		$interestedModel = $this->getCurrentModelClass();
 
 		$result = [];
-		foreach ($this->getFullContains()->contains as $modelClass => $contains) {
+		foreach ($this->getFindParams()->contains as $modelClass => $contains) {
 			/*if ($modelClass === $interestedModel) {
 				continue;
 			}*/
 			foreach ($contains->contains as $modelContains) {
-				if ($modelContains->modelClass === $interestedModel && $this->getFullContains() === $modelContains) {
+				if ($modelContains->modelClass === $interestedModel && $this->getFindParams() === $modelContains) {
 					$result[] = $modelClass;
 				}
 			}

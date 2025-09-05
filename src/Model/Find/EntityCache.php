@@ -4,6 +4,7 @@ namespace Cesys\CakeEntities\Model\Find;
 
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Cesys\CakeEntities\Model\Entities\ColumnProperty;
+use Cesys\CakeEntities\Model\Entities\EntityHelper;
 use Cesys\CakeEntities\Model\EntityAppModelTrait;
 use Cesys\CakeEntities\Model\GetModelTrait;
 use Cesys\Utils\Arrays;
@@ -11,7 +12,7 @@ use Cesys\Utils\Arrays;
 class EntityCache
 {
 	use GetModelTrait;
-	public Contains $contains;
+	public FindParams $findParams;
 
 	/**
 	 * @var EntityAppModelTrait
@@ -24,53 +25,61 @@ class EntityCache
 	 * Druhý klíč je hodnota tohoto sloupce
 	 * Třetí pole je pole nalezených entit, odpovídající dané hodnotě ~vazebního sloupce, klíč je vždy id entity
 	 *
-	 * Tedy pokud první klíč bude 'parent_id', druhý klíč bude 1, tak to bude obsahovat všechny entity, které mají `parent_id` = 1
-	 * @var array[][][]
+	 * Tedy, pokud první klíč bude 'parent_id', druhý klíč bude 1, tak to bude obsahovat všechny entity, které mají `parent_id` = 1
+	 * @var CakeEntity[][][]
 	 */
 	private array $cache = [];
 
 	private array $onAdd = [];
 
-	private Stash $stash;
+	private array $onAddEntities = [];
 
-	public function __construct(Contains $contains, Stash $stash)
+	private self $parentEntityCache;
+
+	public function __construct(FindParams $contains)
 	{
-		$this->contains = $contains;
+		$this->findParams = $contains;
 		$this->model = $this->getModel($contains->modelClass);
 		$this->primaryKey = $this->model->primaryKey;
-		$this->createIndex($this->primaryKey);
-		$this->stash = $stash;
+		$this->cache[$this->primaryKey] = [];
 	}
 
 
-	public function add(CakeEntity $entity, array $preparedIndexes = [], ?array $indexOnlyColumns = null)
+	public static function createFrom(self $fromEntityCache, FindParams $contains): self
 	{
-		if ($indexOnlyColumns === null) {
-			$columns = array_keys($this->cache);
-		} else {
-			foreach ($indexOnlyColumns as $index) {
-				// Pokud nebyl vytvořen index, vytvoří se TODO uz jen sameEnts
-				$this->addIndex($index);
+		$newCache = new static($contains);
+		$newCache->cache = &$fromEntityCache->cache;
+		$newCache->onAdd = &$fromEntityCache->onAdd;
+		$newCache->parentEntityCache = $fromEntityCache;
+		return $newCache;
+	}
+
+
+	public function getParentEntityCache(): ?self
+	{
+		return $this->parentEntityCache ?? null;
+	}
+
+
+	/**
+	 * Vložení entit po volání find
+	 * @param CakeEntity[] $entities
+	 * @param array $indexOnlyColumns Ve findu nemusely být všechny, které jsou definované, takže vždy jsou zvolené, jinak by se mohl vytvořit neúplný index
+	 * @param array $preparedIndexes Do těchto indexů se indexuje hodnota jen v případě, že už má vytvořený klíč (stejný důvod) - tj. v static::startIndexValue()
+	 * Jsou vždy vybrány, kromě indexů ve vlastní tabulce s nekonečnými FindParams
+	 * @return void
+	 */
+	public function addAfterFind(array $entities, array $indexOnlyColumns, array $preparedIndexes)
+	{
+		$indexOnlyColumns[$this->primaryKey] = $this->primaryKey; // Vždy
+		foreach ($indexOnlyColumns as $column) {
+			$onlyPrepared = in_array($column, $preparedIndexes, true);
+			foreach ($entities as $entity) {
+				$this->indexEntity($entity, $column, $onlyPrepared);
 			}
-			$indexOnlyColumns[] = $this->primaryKey; // Vždy
-			$columns = array_intersect(array_keys($this->cache), $indexOnlyColumns);
 		}
-
-		foreach ($columns as $column) {
-			$this->indexEntity($entity, $column, in_array($column, $preparedIndexes, true));
-		}
-		$this->stash->add($entity);
-
-	}
-
-	public function addIndex(string $column): bool
-	{
-		if ( ! isset($this->cache[$column])) {
-			$this->createIndex($column);
-			return true;
-		}
-
-		return false;
+		Arrays::invoke($this->onAddEntities, $entities);
+		$this->onAddEntities = [];
 	}
 
 
@@ -90,23 +99,6 @@ class EntityCache
 		return false;
 	}
 
-	/*public function indexEntities(string $column, ?array $ids = null)
-	{
-		if ($this->primaryKey === $column) {
-			return;
-		}
-		if ($ids === null) {
-			foreach ($this->getEntitiesByPrimary() as $entity) {
-				$this->indexEntity($entity, $column);
-			}
-		} else {
-			foreach ($ids as $id) {
-				if ($entity = $this->getEntity($id)) {
-					$this->indexEntity($entity, $column);
-				}
-			}
-		}
-	}*/
 
 	/**
 	 * @param $value
@@ -122,7 +114,7 @@ class EntityCache
 			return null;
 		}
 
-		return current($this->cache[$column][$value]);
+		return $this->cache[$column][$value][array_key_first($this->cache[$column][$value])];
 	}
 
 	/**
@@ -139,26 +131,7 @@ class EntityCache
 
 	public function getEntitiesByPrimary(): array
 	{
-		// todo blbe orderasi, vzit z indexu
-		return array_intersect_key($this->stash->getCache(), $this->cache[$this->primaryKey]);
-	}
-
-	public function &getCache(): ?array
-	{
-		return $this->cache;
-	}
-
-	public function setCache(array &$cache): void
-	{
-		$this->cache = &$cache;
-	}
-
-	public function getCacheByColumn(?string $column = null): ?array
-	{
-		if ($column === null) {
-			$column = $this->primaryKey;
-		}
-		return $this->cache[$column] ?? null;
+		return Arrays::flatten($this->cache[$this->primaryKey], true);
 	}
 
 
@@ -179,16 +152,21 @@ class EntityCache
 		}
 	}
 
-
-	public function indexEntity(CakeEntity $entity, string $column, bool $onlyPrepared = false)
+	public  function setOnNextAddEntities(callable $onNextAddEntities)
 	{
-		$columnProperty = $this->getColumnProperties()[$column];
+		$this->onAddEntities[] = $onNextAddEntities;
+	}
+
+
+	private function indexEntity(CakeEntity $entity, string $column, bool $onlyPrepared = false)
+	{
+		$columnProperty = EntityHelper::getColumnPropertiesByColumn(get_class($entity))[$column];
 		$value = $columnProperty->property->getValue($entity);
 		if ($value === null) {
 			// nully nejsou v indexu
 			return;
 		}
-		if ($column !== $this->primaryKey && $onlyPrepared) {
+		if ($onlyPrepared && $column !== $this->primaryKey) {
 			if ( ! isset($this->cache[$column][$value])) {
 				return;
 			}
@@ -203,23 +181,5 @@ class EntityCache
 				Arrays::invoke($this->onAdd['all'][$column][$value], $entity);
 			}
 		}
-
-
 	}
-
-
-	private function createIndex(string $column)
-	{
-		$this->cache[$column] = [];
-	}
-
-
-	/**
-	 * @return ColumnProperty[]
-	 */
-	private function &getColumnProperties(): array
-	{
-		return $this->model->getColumnProperties(true);
-	}
-
 }

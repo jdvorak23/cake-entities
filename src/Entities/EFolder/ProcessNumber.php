@@ -14,14 +14,14 @@ class ProcessNumber extends CakeEntity
 
 	public int $folderId;
 
-	public ?int $tourOperatorId;
+	//public ?int $tourOperatorId;
 
 	public string $number;
 
 	/**
 	 * @var Reservation[] ef_process_number_id
 	 */
-	public array $reservations;
+	//public array $reservations;
 
 	public Folder $folder;
 

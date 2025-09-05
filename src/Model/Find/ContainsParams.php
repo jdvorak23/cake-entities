@@ -4,68 +4,51 @@ namespace Cesys\CakeEntities\Model\Find;
 
 use Cesys\Utils\Reflection;
 
-class Params
+
+class ContainsParams
 {
-	public ?Conditions $conditions = null;
+	private ?Conditions $conditions = null;
 
-	/**
-	 * Ať to nemusíme nikde řešit, framework vždy používá zásadně recursive -1
-	 * Ani uživ. volání, vždy je přepsáno na -1
-	 * Joinovat je možno pouze 'ručně' pomocí $joins
-	 * @var int
-	 */
-	public int $recursive = -1;
+	// public int $recursive = -1; Není, je vždy -1
 
-	/**
-	 * V cake má null a [] stejný efekt (žádný), takže []
-	 * @var array
-	 */
-	public array $fields = [];
+	// public array $fields = []; Je vždy defaultní od frameworku
 
 	/**
 	 * null a [] mají stejný efekt (žádný), takže rovnou []
 	 * @var array
 	 */
-	public array $order = [];
+	private array $order = [];
 
-	/**
-	 * I v cake je default []
-	 * @var array
-	 */
-	public array $joins = [];
+	// public array $joins = []; Toto možná nějak v budoucnu
 
-	/**
-	 * null a [] mají stejný efekt -> žádný
-	 * @var array
-	 */
-	public array $group = [];
+	// public array $group = []; Toto by se u entit asi těžko použilo
 
 	/**
 	 * V Cake 0 a null mají stejný výsledek => žádný limit, takže null by bylo zbytečné udržovat
 	 * @var int
 	 */
-	public int $limit = 0;
+	private int $limit = 0;
 
 	/**
 	 * Cake vždy změní hodnotu na 1, pokud je 1< nebo null, takže rovnou na defaultu 1
 	 * Efekt má pouze, pokud je $limit > 0
 	 * @var int
 	 */
-	public int $page = 1;
+	private int $page = 1;
 
 	/**
 	 * Efekt má pouze, pokud je $limit > 0
-	 * Pokud je $page > 1, Cake vždy offset dopočítá, takže v takovém případě nemá smylsl a je přepsán
+	 * Pokud je $page > 1, Cake vždy offset dopočítá, takže v takovém případě nemá smysl a je přepsán
 	 * Takže efekt má jen, pokud je $limit > 0 a $page = 1
 	 * Pokud je null, nebo 0, nemá efekt, null tedy nemá smysl udržovat
 	 * @var int
 	 */
-	public int $offset = 0;
+	private int $offset = 0;
 
 	/**
 	 * @var bool|string true, false, 'before', 'after'
 	 */
-	public $callbacks = true;
+	private $callbacks = true;
 
 	public static function create(array $params = []): self
 	{
@@ -74,20 +57,8 @@ class Params
 		if ( ! empty($params['conditions'])) {
 			$instance->setConditions($params['conditions']);
 		}
-		if (isset($params['recursive'])) {
-			$instance->setRecursive($params['recursive']);
-		}
-		if (isset($params['fields'])) {
-			$instance->setFields($params['fields']);
-		}
 		if (isset($params['order'])) {
 			$instance->setOrder($params['order']);
-		}
-		if (isset($params['joins'])) {
-			$instance->setJoins($params['joins']);
-		}
-		if (isset($params['group'])) {
-			$instance->setGroup($params['group']);
 		}
 		if (isset($params['limit'])) {
 			$instance->setLimit($params['limit']);
@@ -101,28 +72,7 @@ class Params
 		if (isset($params['callbacks'])) {
 			$instance->setCallbacks($params['callbacks']);
 		}
-		/*
-		foreach (Reflection::getReflectionPropertiesOfClass(static::class) as $property) {
-			if (array_key_exists($property->getName(), $params)) {
-				$value = $params[$property->getName()];
-				if ($value === null && $property->getType()->allowsNull()) {
-					$property->setValue($instance, null);
-					continue;
-				}
-				if ($property->getType()->getName() === Conditions::class && is_array($value)) {
-					$property->setValue($instance, Conditions::create($value));
-					continue;
-				}
-				if ($property->getType()->getName() === 'array') {
-					if ( ! $property->getType()->allowsNull() && $value === null) {
-						$value = [];
-					} elseif ( ! is_array($value)) {
-						$value = [$value];
-					}
-				}
-				$property->setValue($instance, $value);
-			}
-		}*/
+
 		return $instance;
 	}
 
@@ -142,11 +92,7 @@ class Params
 	public function clear(): void
 	{
 		$this->setConditions()
-			->setRecursive()
-			->setFields()
 			->setOrder()
-			->setJoins()
-			->setGroup()
 			->setLimit()
 			->setPage()
 			->setOffset()
@@ -155,29 +101,65 @@ class Params
 
 	/**
 	 *
-	 * @param Params $params
+	 * @param ContainsParams $containsParams
 	 * @return bool
-	 * @throws \ReflectionException
 	 * @internal Je to podivuhodný compare
 	 */
-	public function isEqualTo(self $params): bool
+	public function isEqualTo(self $containsParams): bool
 	{
-		foreach (Reflection::getReflectionPropertiesOfClass(static::class) as $property) {
-			// todo @fixme conditions v contains
-			if ($property->getName() === 'conditions') {
-				continue;
-			}
-			if ($property->getName() === 'fields') {
-				// Dělá problémy, fields defaultne nastavene takze ok // todo @internal
-				continue;
-			}
-			// todo @internal 'order', 'joins', 'group' => porovnání polí
-			if ($property->getValue($this) !== $property->getValue($params)) {
+		if ($this === $containsParams) {
+			return true;
+		}
+		if ($this->callbacks !== $containsParams->callbacks) {
+			return false;
+		}
+		if ($this->limit !== $containsParams->limit) {
+			return false;
+		}
+		// Přesně podle logiky popsané u properties
+		if ($this->limit) {
+			if ($this->page !== $containsParams->page) {
 				return false;
 			}
+			if ($this->page === 1) {
+				if ($this->offset !== $containsParams->offset) {
+					return false;
+				}
+			}
+		}
+		// Pokud jsou ekvivalentní order napsány jinak, tak toto nezachytíme => tak ať je píšou stejně :D
+		if (count($this->order) !== count($containsParams->order)) {
+			return false;
+		}
+		$order = [];
+		foreach ($this->order as $key => $item) {
+			if ( ! is_int($key)) {
+				$item = $key . ' ' . $item;
+			}
+			$order[] = strtolower($item);
+		}
+		$containsParamsOrder = [];
+		foreach ($containsParams->order as $key => $item) {
+			if ( ! is_int($key)) {
+				$item = $key . ' ' . $item;
+			}
+			$containsParamsOrder[] = strtolower($item);
+		}
+		if (array_diff($order, $containsParamsOrder)) {
+			return false;
 		}
 
-		return true;
+		$conditionsEmpty = $this->conditions === null || $this->conditions->isEmpty();
+		$containsParamsConditionsEmpty = $containsParams->conditions === null || $containsParams->conditions->isEmpty();
+		if ($conditionsEmpty !== $containsParamsConditionsEmpty) {
+			// Jedno je prázdné a druhé ne
+			return false;
+		} elseif ($conditionsEmpty) {
+			// Obě jsou prázdné
+			return true;
+		}
+		// Obě nejsou prázdné -> musí se porovnat
+		return Conditions::isEqual($this->getConditions(), $containsParams->getConditions());
 	}
 
 
@@ -210,20 +192,6 @@ class Params
 	}
 
 
-	public function setRecursive(int $recursive = -1): self
-	{
-		$this->recursive = $recursive;
-		return $this;
-	}
-
-
-	public function setFields(array $fields = []): self
-	{
-		$this->fields = $fields;
-		return $this;
-	}
-
-
 	/**
 	 * @param string|array $order
 	 * @return static
@@ -236,20 +204,6 @@ class Params
 			throw new \InvalidArgumentException('Order must be an array or string.');
 		}
 		$this->order = $order;
-		return $this;
-	}
-
-
-	public function setJoins(array $joins = []): self
-	{
-		$this->joins = $joins;
-		return $this;
-	}
-
-
-	public function setGroup(array $group = []): self
-	{
-		$this->group = $group;
 		return $this;
 	}
 

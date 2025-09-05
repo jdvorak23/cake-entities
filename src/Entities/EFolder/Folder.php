@@ -46,7 +46,7 @@ class Folder extends CakeEntity
 	/**
 	 * @var MoneyTransaction[] folder_id
 	 */
-	public array $moneyTransactions;
+	//public array $moneyTransactions;
 
 	/**
 	 * @var callable

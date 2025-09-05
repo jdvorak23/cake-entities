@@ -40,7 +40,7 @@ class File extends CakeEntity
 	/**
 	 * @var Invoice[] file_id
 	 */
-	public array $invoices;
+	//public array $invoices;
 
 	public Folder $folder;
 

@@ -15,11 +15,14 @@ class Query
 	private array $onModelEnd = [];
 
 
-	public function start(string $modelClass)
+	public function start(string $modelClass, ?callable $endCallback = null)
 	{
 		$this->path[] = $modelClass;
 		$this->activePath[] = $modelClass;
 		$this->onModelEnd[] = [];
+		if ($endCallback) {
+			$this->addModelEndCallback($endCallback);
+		}
 	}
 
 
