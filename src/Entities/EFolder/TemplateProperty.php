@@ -27,6 +27,12 @@ class TemplateProperty extends CakeEntity
 
     public ?DateTime $modified;
 
+	public static function getModelClass(): string
+	{
+		return static::$modelClasses[static::class] ??= 'EfTemplateProperty';
+	}
+
+
 	public function convertValue(?string $value)
 	{
 		if ($value === null) {

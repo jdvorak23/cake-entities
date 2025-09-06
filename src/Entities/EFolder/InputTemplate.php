@@ -15,8 +15,8 @@ class InputTemplate extends CakeEntity
 
     public ?string $className;
 
-	public ?int $fSubjectId; // todo podmínka do výběru templat na parsování
-
+	public bool $isParent;
+	public bool $construction;
 	public bool $active;
 
     public ?DateTime $created;
@@ -30,14 +30,71 @@ class InputTemplate extends CakeEntity
      */
     public array $properties;
 
-    public function getInputTemplateProperties(): array
+	protected bool $parsedInvoiceError = false;
+
+
+	public static function getModelClass(): string
+	{
+		return static::$modelClasses[static::class] ??= 'EfInputTemplate';
+	}
+
+	/**
+	 * @return InputTemplateProperty[]
+	 */
+    public function getInputTemplateProperties(bool $sorted = true): array
     {
-		$result = $this->properties;
+		$properties = $this->properties;
 		if (isset($this->parent)) {
-			$result = $this->properties + $this->parent->getInputTemplateProperties();
+			$properties = $properties + $this->parent->getInputTemplateProperties(false);
 		}
-        return $result;
+		if ( ! $sorted) {
+			return $properties;
+		}
+		// Na začátku chceme mít significant properties a pak ty co mají hodnotu, až poté ty bez hodnoty
+		// Tj. performance, aby se co nejrychleji vyloučily ty, co nechceme
+		$significant = [];
+		$withValue = [];
+		$rest = [];
+		foreach ($properties as $property) {
+			if ($property->significant) {
+				$significant[$property->id] = $property;
+			} elseif ($property->value !== null) {
+				$withValue[$property->id] = $property;
+			} else {
+				$rest[$property->id] = $property;
+			}
+		}
+		return $significant + $withValue + $rest;
     }
+
+
+	public function getSignificantInputTemplateProperties(): array
+	{
+		$properties = [];
+		foreach ($this->getInputTemplateProperties() as $property) {
+			if ( ! $property->significant) {
+				break;
+			}
+			$properties[$property->id] = $property;
+		}
+		return $properties;
+	}
+
+
+	public function getWithValueInputTemplateProperties(): array
+	{
+		$properties = [];
+		foreach ($this->getInputTemplateProperties() as $property) {
+			if ( ! $property->significant && ! $property->value) {
+				break;
+			}
+			if ( ! $property->significant && $property->value) {
+				$properties[$property->id] = $property;
+			}
+		}
+
+		return $properties;
+	}
 
 	/**
 	 * @param string $text
@@ -49,7 +106,7 @@ class InputTemplate extends CakeEntity
 		foreach ($this->getInputTemplateProperties() as $inputTemplateProperty) {
 			if ( ! $inputTemplateProperty->hasSearchedValue()) {
 				$inputTemplateProperty->setValueFrom($text);
-				if ($inputTemplateProperty->hasError() && $interruptOnError) {
+				if ($interruptOnError && $inputTemplateProperty->hasError()) {
 					return false;
 				}
 			}
@@ -57,15 +114,82 @@ class InputTemplate extends CakeEntity
 		return true;
 	}
 
-
 	public function getErrorsCount(): int
 	{
 		$errorsCount = 0;
-		foreach ($this->getInputTemplateProperties() as $inputTemplateProperty) {
+		foreach ($this->getInputTemplateProperties(false) as $inputTemplateProperty) {
 			if ($inputTemplateProperty->hasError()) {
 				$errorsCount++;
 			}
 		}
 		return $errorsCount;
+	}
+
+	public function hasSignificantError(): bool
+	{
+		foreach ($this->getSignificantInputTemplateProperties() as $inputTemplateProperty) {
+			if ($inputTemplateProperty->hasSignificantError()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public function setParsedInvoiceError(): void
+	{
+		$this->parsedInvoiceError = true;
+	}
+
+	public function hasParsedInvoiceError(): bool
+	{
+		return $this->parsedInvoiceError;
+	}
+
+	public function getParentsBreadcrumbs(): string
+	{
+		$isClientCall = __FUNCTION__ !== debug_backtrace(!DEBUG_BACKTRACE_PROVIDE_OBJECT|DEBUG_BACKTRACE_IGNORE_ARGS,2)[1]['function'];
+		if ( ! $this->parent) {
+			return $isClientCall ? '-' : ($this->company . " ($this->id)");
+		}
+		$result = '';
+		if ( ! $isClientCall) {
+			$result .= ($this->company . " ($this->id)") . ' -> ';
+		}
+		$result .= $this->parent->getParentsBreadcrumbs();
+
+		return $result;
+	}
+
+	/**
+	 * @return InputTemplateProperty[]
+	 */
+	public function getInputTemplatePropertiesTree(): array
+	{
+		$significant = [];
+		$withValue = [];
+		$rest = [];
+		foreach ($this->properties as $property) {
+			if ($property->significant) {
+				$significant[$property->id] = $property;
+			} elseif ($property->value !== null) {
+				$withValue[$property->id] = $property;
+			} else {
+				$rest[$property->id] = $property;
+			}
+			$property->children = [];
+		}
+		$allProperties = $significant + $withValue + $rest;
+
+		$topProperties = [];
+		/** @var InputTemplateProperty $property */
+		foreach ($allProperties as $property) {
+			if ( ! $property->parent) {
+				$topProperties[$property->id] = $property;
+			} else {
+				$property->parent->children[$property->id] = $property;
+			}
+		}
+
+		return $topProperties;
 	}
 }

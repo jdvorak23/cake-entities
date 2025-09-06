@@ -158,6 +158,50 @@ trait EntityAppModelTrait
         return $contains;
     }
 
+	public function getParameterContains(array $fullContains): ?array
+	{
+		$isClientCall = __FUNCTION__ !== debug_backtrace(!DEBUG_BACKTRACE_PROVIDE_OBJECT|DEBUG_BACKTRACE_IGNORE_ARGS,2)[1]['function'];
+		if ($isClientCall) {
+			$fullContains = $fullContains[static::class]['contains'];
+		}
+
+		$contains = [];
+		foreach ($fullContains as $modelClass => $modelParams) {
+			if ($modelParams['contains'] === null) {
+				$contains[] = $modelClass;
+				continue;
+			}
+
+			if ($modelParams['contains']) {
+				$modelParams['contains'] = $this->getParameterContains($modelParams['contains']);
+				if ($modelParams['contains'] !== $this->getModel($modelClass)->getContains()) {
+					$contains[$modelClass] = $modelParams;
+				} else {
+					$contains[] = $modelClass;
+				}
+				//$contains[$modelClass] = $modelParams;
+			} else {
+				unset($modelParams['contains']);
+				//bdump($modelParams);
+				//bdump($this->getModel($modelClass)->getContains());
+				if ($modelParams === $this->getModel($modelClass)->getContains()) {
+					$contains[] = $modelClass;
+				} else {
+					$contains[$modelClass] = $modelParams;
+				}
+			}
+
+		}
+
+		return $contains;
+	}
+
+
+	public function getContains(): array
+	{
+		return $this->contains;
+	}
+
 
     /**
      * @param array $contains
@@ -580,14 +624,19 @@ trait EntityAppModelTrait
         // todo overeni class
         $data = $entity->toDbArray();
         if ($entity->getPrimary() === null) {
-            $this->id = false; // todo create?
+            $this->id = false; // Místo volání create(), které je naprd
         }
         $result = $this->save([$this->alias => array_merge($data, $appendData)], $validate, $fieldList);
         
         if ($result) {
-            // Pokud nebylo id, přiřadí se
+			foreach ($result[$this->alias] as $column => $value) {
+				if ($columnProperty = EntityHelper::getColumnPropertiesByColumn(static::getEntityClass())[$column] ?? null) {
+					EntityHelper::appendFromDbValue($entity, $columnProperty, $value);
+				}
+			}
+            // Pokud nebylo id, přiřadí se todo smazat CESYS
             if ($entity->getPrimary() === null) {
-                $entity->setPrimary($this->id); // todo spis z reziult => merge 4288
+                $entity->setPrimary($this->id);
             }
 
             // Todo mozna priradit i zbytek co se vratilo, ale zatím není jistý, pokud chceme defaulty, meli bychom entitu spravne vytvaret
@@ -610,7 +659,7 @@ trait EntityAppModelTrait
      */
     public function paginateIds(array $paginateParams, array $conditions): array
     {
-        $paginateParams['conditions'] = $conditions; // todo?
+        $paginateParams['conditions'] = array_merge($paginateParams['conditions'] ?? [], $conditions); // todo?
         $paginateParams['fields'] = ["$this->alias.$this->primaryKey"];
 
         if (isset($paginateParams['contains'])) {

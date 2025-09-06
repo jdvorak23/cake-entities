@@ -79,12 +79,16 @@ trait SaveRepairTrait
             }
         }
 
-        // Vložíme vyfiltrovaná data, ne původní
-        $return = parent::save($this->data, $validate, $fieldList);
+
+		// Todo takhle to nejde, metoda save na konci volá callbacky, pokud v callbacku jsou volání další save do
+		// toho samého modelu, pak se přepíše $this->id na něco úplně nesouvisejícího
+		/*bdump($return);
+		bdump($this->id);
         if (is_array($return) && $this->id) {
             // Pokud je úspěšný save, doplníme hodnotu primárního klíče, u CREATE se chybně nedoplňuje
             $return[$this->alias][$this->primaryKey] = $this->id;
-        }
-        return $this->lastSaveResult = $return;
+        }*/
+		// Vložíme vyfiltrovaná data, ne původní
+        return parent::save($this->data, $validate, $fieldList);
     }
 }

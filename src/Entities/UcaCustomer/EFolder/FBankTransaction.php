@@ -2,18 +2,18 @@
 
 namespace Cesys\CakeEntities\Entities\UcaCustomer\EFolder;
 
-use Cesys\CakeEntities\Entities\EFolder\ExchangeRate;
-use Cesys\CakeEntities\Model\Entities\CakeEntity;
+use Cesys\CakeEntities\Entities\EFolder\MoneyTransaction;
+use Cesys\CakeEntities\Entities\UcaCustomer\Bases\BaseFBankTransaction;
 use Nette\Utils\DateTime;
 
-class FBankTransaction extends CakeEntity
+class FBankTransaction extends BaseFBankTransaction
 {
 	
 	public int $id;
 	
 	public int $fSubjectBankId;
 	
-	public $transactionId;
+	//public $transactionId;
 	
 	public DateTime $date;
 	
@@ -25,41 +25,50 @@ class FBankTransaction extends CakeEntity
 	 */
 	public string $currency;
 	
-	public $offset;
+	public ?string $offset;
 	
 	public ?string $offsetName;
 	
-	public $bankCode;
+	public ?string $bankCode;
 	
-	public $bankName;
+	//public $bankName;
 	
-	public $constantSymbol;
+	//public $constantSymbol;
 	
 	public ?int $variableSymbol;
 	
-	public $specificSymbol;
+	//public $specificSymbol;
 	
 	public ?string $userIdentification;
 	
 	public ?string $userMessage;
 	
-	public $operationType;
+	//public $operationType;
 	
-	public $officerProceeded;
+	//public $officerProceeded;
 	
-	public $specification;
+	//public $specification;
 	
-	public $comment;
+	public ?string $comment;
 	
-	public $bic;
+	public ?string $bic;
 	
-	public $instructionId;
+	//public $instructionId;
 	
-	public $status;
+	//public $status;
 	
-	public $checked;
+	//public $checked;
+
+	/**
+	 * null - nepoužitá
+	 * true - použitá v plné výši
+	 * false - odložena, ve smyslu nepoužita a nechceme použít
+	 * @var bool|null
+	 */
+	public ?bool $used;
 
 	public FSubjectBank $fSubjectBank;
+
 
 	/**
 	 * @var FCurrency currency code
@@ -68,10 +77,9 @@ class FBankTransaction extends CakeEntity
 
 
 	/**
-	 * @var callable
+	 * @var MoneyTransaction[] fBankTransactionId
 	 */
-	protected $exchangeRateCallback;
-
+	public array $moneyTransactions;
 
 
 	public static function getModelClass(): string
@@ -79,57 +87,9 @@ class FBankTransaction extends CakeEntity
 		return static::$modelClasses[static::class] ??= 'EfFBankTransaction';
 	}
 
-	public function getRoundedAmount(): float
+
+	protected function getFCurrency(): FCurrency
 	{
-		return round($this->value, $this->fCurrency->roundCount);
-	}
-
-
-	/**
-	 * @param callable $exchangeRateCallback
-	 * @return void
-	 */
-	public function setExchangeRateCallback(callable $exchangeRateCallback)
-	{
-		$this->exchangeRateCallback = $exchangeRateCallback;
-	}
-
-
-	public function getExchangeRate(): ?ExchangeRate
-	{
-		if ($this->currency === FInvoice::DefaultCurrencyCode) {
-			return null;
-		}
-
-		$date = min($this->date, new DateTime('yesterday'));
-
-		return ($this->exchangeRateCallback)($date, $this->fCurrency->id, FInvoice::DefaultCurrencyId);
-	}
-
-	/**
-	 * Orientační
-	 * @return float
-	 */
-	public function getAmountInDefaultCurrency(): float
-	{
-		if ($exchangeRate = $this->getExchangeRate()) {
-			return $exchangeRate->convertFrom($this->value);
-		}
-		return $this->getRoundedAmount();
-	}
-
-	/**
-	 * Kdo poslal peníze
-	 * @return string
-	 */
-	public function getName(): string
-	{
-		if (isset($this->offsetName)) {
-			return $this->offsetName;
-		}
-		if (isset($this->userIdentification)) {
-			return $this->userIdentification;
-		}
-		return '';
+		return $this->fCurrency;
 	}
 }

@@ -58,6 +58,14 @@ class EntityHelper
 	{
 		$columnProperty = self::getColumnProperty($entity, $column);
 		$type = $columnProperty->property->getType();
+
+		// To pak padá pokud se vkládají hodnoty z formuláře, musí se převést prázdný řetězec na null
+		// Takže na to seru a obecně, pokud to je null-possible property a hodnota je '', uloží se null
+		if ($value === '' && ( ! $type || $type->allowsNull())) {
+			$entity->{$columnProperty->propertyName} = null;
+			return;
+		}
+
 		if ($type) {
 			$typeName = $type->getName();
 			if (is_a($typeName, \DateTime::class, true) && is_string($value)) {
@@ -70,12 +78,11 @@ class EntityHelper
 			}
 		}
 
-		// To pak padá pokud se vkládají hodnoty z formuláře, musí se převést prázdný řetězec na null
-		// Takže na to seru a obecně, pokud to je null-possible property a hodnota je '', uloží se null
-		if ($value === '' && ( ! $type || $type->allowsNull())) {
-			$entity->{$columnProperty->propertyName} = null;
-		} else {
+		try {
 			$entity->{$columnProperty->propertyName} = $value;
+		} catch (\Throwable $e) {
+			bdump($value);
+			throw $e;
 		}
 	}
 

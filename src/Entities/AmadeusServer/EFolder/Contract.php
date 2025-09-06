@@ -2,7 +2,7 @@
 
 namespace Cesys\CakeEntities\Entities\AmadeusServer\EFolder;
 
-use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FCurrency;
+use Cesys\CakeEntities\Entities\Glob\Currency;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Nette\Utils\DateTime;
 
@@ -11,6 +11,11 @@ class Contract extends CakeEntity
 	public int $id;
 
 	public ?int $reservationId;
+
+	public ?int $customerId;
+
+	public ?int $countryId;
+	public ?string $countryCode;
 
 	public ?string $tourOperatorName;
 
@@ -68,17 +73,19 @@ class Contract extends CakeEntity
 	 */
 	public ?string $paymentCurrency;
 
-	public ?string $processNumber;
+	public ?int $contractVersion;
+
+	/**
+	 * @var Currency paymentCurrency code
+	 */
+	public Currency $currency;
+
 
 	/**
 	 * @var ContractService[] contract_id
 	 */
 	public array $contractServices;
 
-	/**
-	 * @var FCurrency paymentCurrency code
-	 */
-	public FCurrency $fPaymentCurrency;
 
 	/**
 	 * Musí se ručně doplnit, vytváří PriceHelper::getAmadeusPaymenSchedule()
@@ -111,37 +118,37 @@ class Contract extends CakeEntity
 
 	public function getPrice(): float
 	{
-		return $this->fPaymentCurrency->round($this->paymentSchedules['totalPrice']['paymentCurrency']);
+		return $this->currency->round($this->paymentSchedules['totalPrice']['paymentCurrency']);
 	}
 
 	public function getCommission(): float
 	{
-		return $this->fPaymentCurrency->round($this->paymentSchedules['commissions']['paymentCurrency']);
+		return $this->currency->round($this->paymentSchedules['commissions']['paymentCurrency']);
 	}
 
 	public function getPriceWithoutCommission(): float
 	{
-		return $this->getPrice() - $this->getCommission();
+		return $this->currency->round($this->getPrice() - $this->getCommission());
 	}
 
 	public function getDeposit(): float
 	{
-		return $this->fPaymentCurrency->round($this->paymentSchedules['deposit']['paymentCurrency']);
+		return $this->currency->round($this->paymentSchedules['deposit']['paymentCurrency']);
 	}
 
 	public function getDepositWithoutCommission(): float
 	{
-		return $this->fPaymentCurrency->round($this->paymentSchedules['priceWithoutCommissions']['deposit']['paymentCurrency']);
+		return $this->currency->round($this->paymentSchedules['priceWithoutCommissions']['deposit']['paymentCurrency']);
 	}
 
 	public function getSupplement(): float
 	{
-		return $this->fPaymentCurrency->round($this->paymentSchedules['supplement']['paymentCurrency']);
+		return $this->currency->round($this->paymentSchedules['supplement']['paymentCurrency']);
 	}
 
 	public function getSupplementWithoutCommission(): float
 	{
-		return $this->fPaymentCurrency->round($this->paymentSchedules['priceWithoutCommissions']['supplement']['paymentCurrency']);
+		return $this->currency->round($this->paymentSchedules['priceWithoutCommissions']['supplement']['paymentCurrency']);
 	}
 
 	public function getTotalPayment(): float
@@ -152,5 +159,15 @@ class Contract extends CakeEntity
 	public function getTotalPaymentWithoutCommission(): float
 	{
 		return $this->getDepositWithoutCommission() + $this->getSupplementWithoutCommission();
+	}
+
+
+	public function getContractVersion(): int
+	{
+		if (empty($this->contractVersion)) {
+			return 1;
+		}
+
+		return $this->contractVersion;
 	}
 }

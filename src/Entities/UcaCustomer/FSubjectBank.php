@@ -9,6 +9,8 @@ class FSubjectBank extends CakeEntity
 	public int $id;
 	public int $fSubjectId;
 
+	public ?int $fCurrencyId;
+
 	public ?string $name;
 
 	public ?string $account;
@@ -17,6 +19,7 @@ class FSubjectBank extends CakeEntity
 
 	public ?string $swift;
 
+	public ?string $apiName;
 	public ?string $token;
 
 	public ?bool $active;

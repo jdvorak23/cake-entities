@@ -9,11 +9,11 @@ class FSubject extends CakeEntity
 
 	public int $id;
 
-	public $name;
+	public ?string $name;
 
-	public $supplier;
+	public ?bool $supplier;
 
-	public $customer;
+	public ?bool $customer;
 
 	public ?string $inumber;
 
@@ -39,11 +39,11 @@ class FSubject extends CakeEntity
 
 	public $registration;
 
-	public $guid;
+	public string $guid;
 
-	public $specificSymbol;
+	public ?string $specificSymbol;
 
-	public $taxpayer;
+	public bool $taxpayer;
 
 	public $tradesman;
 
@@ -51,12 +51,12 @@ class FSubject extends CakeEntity
 
 	public $note;
 
-	public $active;
+	public ?bool $active;
 
 	/**
-	 * @var FSubjectAddress[] f_subject_id
+	 * @var FSubjectAddress id fSubjectId
 	 */
-	public array $fSubjectAddresses;
+	public FSubjectAddress $fSubjectAddress;
 
 
 	public static function getModelClass(): string
@@ -64,12 +64,4 @@ class FSubject extends CakeEntity
 		return static::$modelClasses[static::class] ??= 'EfFSubject';
 	}
 
-	public function getFSubjectAddress(): ?FSubjectAddress
-	{
-		if ($this->fSubjectAddresses) {
-			return current($this->fSubjectAddresses);
-		}
-
-		return null;
-	}
 }

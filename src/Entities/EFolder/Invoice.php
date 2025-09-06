@@ -12,7 +12,9 @@ class Invoice extends CakeEntity
 
 	public ?int $reservationId;
 
-	public ?int $fileId;
+	public ?int $bookingId;
+
+	public ?int $fileInvoiceId;
 
 	public FInvoice $fInvoice;
 

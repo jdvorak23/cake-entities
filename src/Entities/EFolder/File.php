@@ -2,17 +2,26 @@
 
 namespace Cesys\CakeEntities\Entities\EFolder;
 
+use Cesys\CakeEntities\Entities\EFolder\Interfaces\IFile;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
+use Cesys\Utils\Entities\FilePathInfo;
+use Cesys\Utils\FileSystemHelper;
 use Nette\Utils\DateTime;
 use Nette\Utils\FileSystem;
 
-class File extends CakeEntity
+class File extends CakeEntity implements IFile
 {
     public int $id;
 
-	public int $folderId;
+	public ?int $folderId;
 
 	public ?int $inputTemplateId;
+
+	public ?int $reservationId;
+
+	public ?string $label;
+
+	public string $dir;
 
     public string $filename;
 
@@ -21,6 +30,8 @@ class File extends CakeEntity
 	public ?string $mime;
 
 	public int $size;
+
+	public ?string $hash;
 
 	public bool $active;
 
@@ -37,12 +48,15 @@ class File extends CakeEntity
 
 	public ?InputTemplate $inputTemplate;
 
-	/**
-	 * @var Invoice[] file_id
-	 */
-	//public array $invoices;
+	public ?Folder $folder;
 
-	public Folder $folder;
+	/**
+	 * @var ?FileInvoice id fileId
+	 */
+	public ?FileInvoice $fileInvoice;
+
+
+
 
     public string $path;
 
@@ -53,15 +67,16 @@ class File extends CakeEntity
 
 	protected $parsedInvoice;
 
-	/**
-	 * nechci závislost ach jko
-	 * @var callable
-	 *
-	protected $documentInvoiceFactory;
-	public function setDocumentInvoiceFactory(callable $documentInvoiceFactory)
+
+	public static function getModelClass(): string
 	{
-		$this->documentInvoiceFactory = $documentInvoiceFactory;
-	}*/
+		return static::$modelClasses[static::class] ??= 'EfFile';
+	}
+
+	public static function getExcludedFromProperties(): array
+	{
+		return ['path'];
+	}
 
 	public function setParsedInvoiceFactory(callable $parsedInvoiceFactory)
 	{
@@ -76,21 +91,6 @@ class File extends CakeEntity
 		return $this->parsedInvoice ??= ($this->parsedInvoiceFactory)($this);
 	}
 
-	public static function getModelClass(): string
-	{
-		return static::$modelClasses[static::class] ??= 'EfFile';
-	}
-
-    public static function getExcludedFromProperties(): array
-    {
-        return ['path'];
-    }
-
-
-
-
-
-
     public function getFullFilename(): string
 	{
 		$filename = $this->filename;
@@ -101,25 +101,39 @@ class File extends CakeEntity
 		return $filename;
 	}
 
+	public function getFullDir(): string
+	{
+		if ( ! isset($this->path) ) {
+			throw new \LogicException('Path is not set');
+		}
+		return Filesystem::joinPaths($this->path, $this->dir);
+	}
+
     public function getFullPath(): string
     {
         if ( ! isset($this->path) ) {
             throw new \LogicException('Path is not set');
         }
-        if ( ! isset($this->folderId) ) {
-            throw new \LogicException('FolderId is not set');
-        }
-        return Filesystem::joinPaths($this->path, $this->folderId, $this->getFullFilename());
+
+        return Filesystem::joinPaths($this->getFullDir(), $this->getFullFilename());
     }
 
-	public function hasInvoiceOfType(int $fInvoiceTypeId): bool
+	public function getAttachedFilePathInfo(): FilePathInfo
 	{
-		foreach ($this->invoices as $invoice) {
-			if ($invoice->fInvoice->fInvoiceTypeId === $fInvoiceTypeId) {
-				return true;
-			}
+		$filePathInfo = FilePathInfo::createFromPath($this->getFullPath());
+		$filePathInfo->onChange[] = [$this, 'appendFromFilePathInfo'];
+		return $filePathInfo;
+	}
+
+	public function appendFromFilePathInfo(FilePathInfo $filePathInfo, bool $attach = false): void
+	{
+		$this->filename = $filePathInfo->getFilename();
+		$this->extension = $filePathInfo->getExtension();
+		// todo ověřit
+		$this->dir = FileSystemHelper::getRelativePath($this->path, $filePathInfo->getDirname());
+		if ($attach) {
+			$filePathInfo->onChange[] = [$this, 'appendFromFilePathInfo'];
 		}
-		return false;
 	}
 
 }

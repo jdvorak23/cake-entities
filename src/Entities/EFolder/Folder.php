@@ -14,6 +14,8 @@ class Folder extends CakeEntity
 {
     public int $id;
 
+	public int $folderDatabaseId;
+
 	public string $number;
     public string $clientName;
 
@@ -39,28 +41,24 @@ class Folder extends CakeEntity
     public array $files;
 
 	/**
-	 * @var ProcessNumber[] folder_id
+	 * @var ProcessNumber[] folderId
 	 */
 	public array $processNumbers;
 
 	/**
-	 * @var MoneyTransaction[] folder_id
+	 * @var MoneyTransaction[] folderId
 	 */
 	//public array $moneyTransactions;
 
 	/**
-	 * @var callable
+	 * @var Reservation[] efFolderId
 	 */
-	//protected $exchangeRateCallback;
+	public array $reservations;
 
 	/**
-	 * @param callable $exchangeRateCallback
-	 * @return void
+	 * @var Booking[] folderId
 	 */
-	/*public function setExchangeRateCallback(callable $exchangeRateCallback)
-	{
-		$this->exchangeRateCallback = $exchangeRateCallback;
-	}*/
+	public array $bookings;
 
 
 	public static function getModelClass(): string
@@ -68,11 +66,16 @@ class Folder extends CakeEntity
 		return static::$modelClasses[static::class] ??= 'EfFolder';
 	}
 
+	public function getYearFromNumber(): string
+	{
+		return '20' . substr($this->number, 0, 2);
+	}
+
 	public function getProcessNumbersList(): array
 	{
 		$list = [];
 		foreach ($this->processNumbers as $processNumber) {
-			$list[$processNumber->id] = $processNumber->number;
+			$list[$processNumber->id] = "$processNumber->number ({$processNumber->supplier->brand})";
 		}
 		return $list;
 	}
@@ -89,17 +92,6 @@ class Folder extends CakeEntity
 		return $processNumbers;
 	}
 
-	/**
-	 * @return Reservation[]
-	 */
-	public function getReservations(): array
-	{
-		$reservations = [];
-		foreach ($this->processNumbers as $processNumber) {
-			$reservations += $processNumber->reservations;
-		}
-		return $reservations;
-	}
 
 	/**
 	 * @return Reservation[]
@@ -107,26 +99,56 @@ class Folder extends CakeEntity
 	public function getReservationsByNumber(): array
 	{
 		$reservations = [];
-		foreach ($this->processNumbers as $processNumber) {
-			foreach ($processNumber->reservations as $reservation) {
-				$reservations[$reservation->number] = $reservation;
-			}
+		foreach ($this->reservations as $reservation) {
+			$reservations[$reservation->number] = $reservation;
 		}
 		return $reservations;
 	}
+	
+	
+	public function getReservationsCustomerIds(): array
+	{
+		$customerIds = [];
+		foreach ($this->reservations as $reservation) {
+			if ( ! $reservation->customerId) {
+				continue;
+			}
+			$customerIds[] = $reservation->customerId;
+		}
+		return array_unique($customerIds);
+	}
+
 
 	/**
 	 *
-	 * @return array id => number
+	 * @return array id => číslo rezervace, jméno, měna
 	 */
 	public function getReservationsList(): array
 	{
-		$reservations = [];
-		foreach ($this->getReservations() as $reservation) {
-			$reservations[$reservation->id] = $reservation->number;
+		$list = [];
+		foreach ($this->reservations as $reservation) {
+			$list[$reservation->id] = $reservation->number . ' - ' . $reservation->getClientName() . ' - ' . $reservation->contract->paymentCurrency;
 		}
-		return $reservations;
+
+		return $list;
 	}
+
+
+	/**
+	 * @return FileInvoice[]
+	 */
+	public function getFileInvoices(): array
+	{
+		$fileInvoices = [];
+		foreach ($this->processNumbers as $processNumber) {
+			$processNumberFileInvoices = $processNumber->fileInvoices;
+			uasort($processNumberFileInvoices, fn(FileInvoice $a, FileInvoice $b) => $b->date <=> $a->date);
+			$fileInvoices += $processNumberFileInvoices;
+		}
+
+		return $fileInvoices;
+	}
+
 
 	/**
 	 * @return Invoice[]
@@ -134,11 +156,20 @@ class Folder extends CakeEntity
 	public function getInvoices(): array
 	{
 		$invoices = [];
-		foreach ($this->getReservations() as $reservation) {
-			$invoices += $reservation->invoices;
+		foreach ($this->reservations as $reservation) {
+			foreach ($reservation->invoices as $invoice) {
+				$invoices[$invoice->id] = $invoice;
+			}
 		}
-		foreach ($this->files as $file) {
-			$invoices += $file->invoices;
+		foreach ($this->bookings as $booking) {
+			if ($booking->invoice) {
+				$invoices[$booking->invoice->id] = $booking->invoice;
+			}
+		}
+		foreach ($this->processNumbers as $processNumber) {
+			foreach ($processNumber->fileInvoices as $fileInvoice) {
+				$invoices += $fileInvoice->invoices;
+			}
 		}
 		return $invoices;
 	}
@@ -154,22 +185,6 @@ class Folder extends CakeEntity
 		}
 		return $fInvoices;
 	}
-
-	/**
-	 * @return ContractService[]
-	 */
-	/*public function getServiceContractServices(): array
-	{
-		$contractServices = [];
-		foreach ($this->getReservations() as $reservation) {
-			foreach ($reservation->getContract()->contractServices as $contractService) {
-				if ($contractService->kind === ContractService::KindServicePrice && $contractService->price) {
-					$contractServices[$contractService->id] = $contractService;
-				}
-			}
-		}
-		return $contractServices;
-	}*/
 
 
 	public function getInvoicesTotalIncome(): float
@@ -210,7 +225,7 @@ class Folder extends CakeEntity
 	{
 		$transactions = [];
 		foreach ($this->moneyTransactions as $transaction) {
-			if ($transaction->isIncome && $transaction->active) {
+			if ($transaction->isIncome) {
 				$transactions[$transaction->id] = $transaction;
 			}
 		}
@@ -236,13 +251,13 @@ class Folder extends CakeEntity
 	{
 		$totals = [];
 		foreach ($this->moneyTransactions as $transaction) {
-			if ( ! $transaction->isIncome || ! $transaction->active) {
+			if ( ! $transaction->isIncome) {
 				continue;
 			}
 			if ( ! isset($totals[$transaction->fCurrencyId])) {
 				$totals[$transaction->fCurrencyId] = 0;
 			}
-			$totals[$transaction->fCurrencyId] += (float) $transaction->amount;
+			$totals[$transaction->fCurrencyId] = $transaction->fCurrency->round($totals[$transaction->fCurrencyId] + (float) $transaction->amount);
 		}
 		return $totals;
 	}
@@ -251,7 +266,7 @@ class Folder extends CakeEntity
 	{
 		$total = 0;
 		foreach ($this->moneyTransactions as $transaction) {
-			if ( ! $transaction->isIncome || ! $transaction->active) {
+			if ( ! $transaction->isIncome) {
 				continue;
 			}
 			$total += $transaction->getAmountInDefaultCurrency();
@@ -262,13 +277,13 @@ class Folder extends CakeEntity
 	public function getTransactionsIncomeActualTotal(): float
 	{
 		$total = 0;
-		$today = new DateTime('today');
 		foreach ($this->moneyTransactions as $transaction) {
-			if ( ! $transaction->isIncome || ! $transaction->active || $transaction->date > $today) {
+			if ( ! $transaction->isIncome || $transaction->isProspective) {
 				continue;
 			}
 			$total += $transaction->getAmountInDefaultCurrency();
 		}
+
 		return $total;
 	}
 
@@ -281,7 +296,7 @@ class Folder extends CakeEntity
 	{
 		$transactions = [];
 		foreach ($this->moneyTransactions as $transaction) {
-			if ( ! $transaction->isIncome && $transaction->active) {
+			if ( ! $transaction->isIncome) {
 				$transactions[$transaction->id] = $transaction;
 			}
 		}
@@ -307,23 +322,24 @@ class Folder extends CakeEntity
 	{
 		$totals = [];
 		foreach ($this->moneyTransactions as $transaction) {
-			if ($transaction->isIncome || ! $transaction->active) {
+			if ($transaction->isIncome) {
 				continue;
 			}
 			if ( ! isset($totals[$transaction->fCurrencyId])) {
 				$totals[$transaction->fCurrencyId] = 0;
 			}
-			$totals[$transaction->fCurrencyId] += (float) $transaction->amount;
 
+			$totals[$transaction->fCurrencyId] = $transaction->fCurrency->round($totals[$transaction->fCurrencyId] + (float) $transaction->amount);
 		}
 		return $totals;
 	}
+
 
 	public function getTransactionsExpensesTotal(): float
 	{
 		$total = 0;
 		foreach ($this->moneyTransactions as $transaction) {
-			if ($transaction->isIncome || ! $transaction->active) {
+			if ($transaction->isIncome) {
 				continue;
 			}
 			$total += $transaction->getAmountInDefaultCurrency();
@@ -331,12 +347,12 @@ class Folder extends CakeEntity
 		return $total;
 	}
 
+
 	public function getTransactionsExpensesActualTotal(): float
 	{
 		$total = 0;
-		$today = new DateTime('today');
 		foreach ($this->moneyTransactions as $transaction) {
-			if ($transaction->isIncome || ! $transaction->active  || $transaction->date > $today) {
+			if ($transaction->isIncome || $transaction->isProspective) {
 				continue;
 			}
 			$total += $transaction->getAmountInDefaultCurrency();

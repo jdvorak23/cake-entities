@@ -20,24 +20,43 @@ class ExchangeRate extends CakeEntity
 	public int $count;
 
 	/**
+	 * Základní měna, tj. ta, do jejíž centrální banky se díváme na kurz
 	 * @var FCurrency refCurrencyId
 	 */
 	public FCurrency $fRefCurrency;
 
 	/**
+	 * Cizí měna
 	 * @var FCurrency currencyId
 	 */
 	public FCurrency $fCurrency;
 
-	public function convertFrom(float $amountInForeignCurrency): float
+	public static function getModelClass(): string
 	{
-		$amount = $this->rate / $this->count * $amountInForeignCurrency;
-		return round($amount, $this->fRefCurrency->roundCount);
+		return static::$modelClasses[static::class] ??= 'EfExchangeRate';
 	}
 
-	public function convertTo(float $amountInRefCurrency): float
+	/**
+	 * Zkonvertuje částku z cizí měny
+	 * @param float $amountInForeignCurrency
+	 * @param int|null $roundCount bere se, pokud je uveden. V případě null se bere z FCurrency::roundCount
+	 * @return float
+	 */
+	public function convertFrom(float $amountInForeignCurrency, ?int $roundCount = null): float
+	{
+		$amount = $this->rate / $this->count * $amountInForeignCurrency;
+		return round($amount, $roundCount ?? $this->fRefCurrency->roundCount);
+	}
+
+	/**
+	 * Zkonvertuje částku do cizí měny
+	 * @param float $amountInRefCurrency
+	 * @param int|null $roundCount bere se, pokud je uveden. V případě null se bere z FCurrency::roundCount
+	 * @return float
+	 */
+	public function convertTo(float $amountInRefCurrency, ?int $roundCount = null): float
 	{
 		$amount = $amountInRefCurrency * $this->count / $this->rate;
-		return round($amount, $this->fCurrency->roundCount);
+		return round($amount, $roundCount ?? $this->fCurrency->roundCount);
 	}
 }

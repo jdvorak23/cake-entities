@@ -22,6 +22,10 @@ class Log extends CakeEntity
 
 	public int $primary;
 
+	/**
+	 *
+	 * @var string|null
+	 */
 	public ?string $data;
 
 	public ?string $diff;
@@ -50,19 +54,44 @@ class Log extends CakeEntity
 		$this->data = $data === null ? null : serialize($data);
 	}
 
-	public function getItems(): string
+	public function getDiff(): ?array
 	{
-		if ( ! $data = $this->getData()) {
-			return '-';
+		if ($this->diff === null) {
+			return null;
 		}
-		$result = '';
-		foreach ($data as $key => $value) {
-			if ($value === null) {
-				continue;
+		return unserialize($this->diff);
+	}
+
+	public function setDiff(?array $diff): void
+	{
+		$this->diff = $diff === null ? null : serialize($diff);
+	}
+
+	public function getItems(array &$logData): array
+	{
+		$data = $this->getData();
+		$diff = $this->getDiff();
+		if ($data !== null && $diff !== null) {
+			// live
+			return [$diff, $data];
+		} elseif ($data !== null) {
+			// Celý řádek
+			$logData = $data;
+			return [$data, []];
+		} elseif ($diff !== null) {
+			$previous = [];
+			foreach ($diff as $column => $value) {
+				if (array_key_exists($column, $logData)) {
+					$previous[$column] = $logData[$column];
+				}
+				$logData[$column] = $value;
 			}
-			$result .= "\n$key: $value";
+			return [$diff, $previous];
 		}
-		return trim($result);
+
+
+		bdump("WHAAAAAAAAAT");
+		return [];
 	}
 
 }

@@ -2,45 +2,15 @@
 
 namespace Cesys\CakeEntities\Entities\AmadeusServer\EFolder;
 
+use Cesys\CakeEntities\Entities\AmadeusServer\Interfaces\IReservation;
+use Cesys\CakeEntities\Entities\EFolder\File;
 use Cesys\CakeEntities\Entities\EFolder\Invoice;
+use Cesys\CakeEntities\Entities\UcaCustomer\EFolder\FInvoice;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Nette\Utils\DateTime;
 
-class Reservation extends CakeEntity
+class Reservation extends CakeEntity implements IReservation
 {
-	/**
-	 * Typy enum $paymentCollection
-	 */
-	public const PaymentCollectionSeller = 'seller';
-	public const PaymentCollectionTO = 'tour_operator';
-
-	/**
-	 * Typy 'enum' $reservationType. Ve skutečnosti není enum, ale pracuje se s ním tak
-	 */
-	public const ReservationTypeCustomDirectSell = 'customDirectSell';
-	public const ReservationTypeCustomPartnerSell = 'customPartnerSell';
-	public const ReservationTypeSystemDirectSell = 'systemDirectSell';
-	public const ReservationTypeSystemPartnerSell = 'systemPartnerSell';
-
-	/**
-	 * Typy enum $paymentStatus
-	 */
-	public const PaymentStatusUnpaid = 'unpaid';
-
-	public const PaymentStatusOther = 'other';
-
-	public const PaymentStatusOption = 'option';
-
-	public const PaymentStatusPaidDeposit = 'paid_deposit';
-
-	public const PaymentStatusPaid = 'paid';
-
-	public const PaymentStatusReturned = 'returned';
-
-	public const PaymentStatusCancelled = 'cancelled';
-
-
-
 	public int $id;
 
 	public ?int $tourOperatorId;
@@ -49,7 +19,19 @@ class Reservation extends CakeEntity
 
 	public ?int $customerId;
 
-	public ?int $efProcessNumberId;
+	/**
+	 * ENUM
+	 * null => nějaká chyba, asi nějak špatně vytvořený řádek
+	 * Určuje stát cestovní agentury (partnera), nebo jinak stát UCA, tj. jaká doména
+	 * @var string|null
+	 */
+	public ?string $customerCountry;
+
+	public ?int $efFolderId;
+
+	//public ?int $efProcessNumberId; todo smazat z db db @deprecated ???
+
+	public ?string $reservationStatus;
 
 	public ?string $paymentStatus;
 	
@@ -65,51 +47,60 @@ class Reservation extends CakeEntity
 	public string $firstname;
 
 	public string $surname;
-
+	
 	/**
 	 * Viz public constanty
 	 * @var string
 	 */
 	public string $paymentCollection;
 
+	/**
+	 * Toto si určíme, pokud chceme, aby večer cron vytvořil vydanou fakturu k rezervaci. Pokud tam je starší datum ned dnešní,
+	 * @var DateTime
+	 */
+	public ?DateTime $invoiceDate;
+
 	public DateTime $created;
 
-
 	/**
-	 * @var Contract[] reservation_id
+	 * @var Contract id reservationId
 	 */
-	public array $contracts;
+	public Contract $contract;
 
 	/**
-	 * @var Invoice[] reservation_id
+	 * @var Invoice[] reservationId
 	 */
 	public array $invoices;
+
+	/**
+	 * @var File[] reservationId
+	 */
+	public array $signedContracts;
+
+	/**
+	 * Pomůcka pro uložení předchozího stavu, není sloupec, ručně
+	 * @var string
+	 */
+	public string $oldPaymentStatus;
+
 
 	public static function getModelClass(): string
 	{
 		return static::$modelClasses[static::class] ??= 'EfAmadeusReservation';
 	}
 
+
+	public static function getExcludedFromProperties(): array
+	{
+		return ['oldPaymentStatus'];
+	}
+
+
 	public function getClientName(): string
 	{
 		return trim(trim($this->firstname) . ' ' . trim($this->surname));
 	}
 
-	public function getContract(): ?Contract
-	{
-		if ($this->contracts) {
-			return current($this->contracts);
-		}
-		return null;
-	}
-
-	public function getInvoice(): ?Invoice
-	{
-		if ($this->invoices) {
-			return current($this->invoices);
-		}
-		return null;
-	}
 
 	public function isPartnerSell(): bool
 	{
@@ -117,37 +108,55 @@ class Reservation extends CakeEntity
 			|| $this->reservationType === self::ReservationTypeSystemPartnerSell;
 	}
 
+
 	public function getPrice(): float
 	{
-		return $this->getContract()->getPrice();
+		return $this->contract->getPrice();
 	}
+
 
 	public function getCommission(): float
 	{
-		return $this->getContract()->getCommission();
+		return $this->contract->getCommission();
 	}
+
 
 	public function getPriceWithoutCommission(): float
 	{
-		return $this->getContract()->getPriceWithoutCommission();
+		return $this->contract->getPriceWithoutCommission();
 	}
+
 
 	public function getDeposit(): float
 	{
 		return $this->paymentCollection === self::PaymentCollectionSeller
-			? $this->getContract()->getDepositWithoutCommission()
-			: $this->getContract()->getDeposit();
+			? $this->contract->getDepositWithoutCommission()
+			: $this->contract->getDeposit();
 	}
+
 
 	public function getSupplement(): float
 	{
 		return $this->paymentCollection === self::PaymentCollectionSeller
-			? $this->getContract()->getSupplementWithoutCommission()
-			: $this->getContract()->getSupplement();
+			? $this->contract->getSupplementWithoutCommission()
+			: $this->contract->getSupplement();
 	}
+
 
 	public function getTotalPayment(): float
 	{
 		return $this->getDeposit() + $this->getSupplement();
+	}
+
+	/**
+	 * @return FInvoice[]
+	 */
+	public function getFInvoices(): array
+	{
+		$fInvoices = [];
+		foreach ($this->invoices as $invoice) {
+			$fInvoices[$invoice->fInvoiceId] = $invoice->fInvoice;
+		}
+		return $fInvoices;
 	}
 }
