@@ -8,6 +8,6 @@ class FCurrency extends BaseFCurrency
 {
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EFCurrency';
+		return 'EFCurrency';
 	}
 }

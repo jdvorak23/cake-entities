@@ -12,6 +12,6 @@ class FCountry extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfFCountry';
+		return 'EfFCountry';
 	}
 }

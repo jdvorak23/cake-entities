@@ -66,7 +66,7 @@ class MoneyTransaction extends CakeEntity implements IMoneyTransaction
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfMoneyTransaction';
+		return 'EfMoneyTransaction';
 	}
 
 

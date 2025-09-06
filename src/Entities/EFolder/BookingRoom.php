@@ -13,6 +13,6 @@ class BookingRoom extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfBookingRoom';
+		return 'EfBookingRoom';
 	}
 }

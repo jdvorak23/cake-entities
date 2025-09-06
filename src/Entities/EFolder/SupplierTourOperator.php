@@ -14,7 +14,7 @@ class SupplierTourOperator extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfSupplierTourOperator';
+		return 'EfSupplierTourOperator';
 	}
 
 	public static function getPrimaryPropertyName(): string

@@ -2,17 +2,15 @@
 
 namespace Cesys\CakeEntities\Entities\EFolder;
 
+use Cesys\CakeEntities\Entities\EFolder\Interfaces\ITemplateProperty;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
+use Cesys\Utils\DateTimeHelper;
 use Nette\Utils\DateTime;
 
-class TemplateProperty extends CakeEntity
+class TemplateProperty extends CakeEntity implements ITemplateProperty
 {
-	const TYPE_STRING = 'string';
-	const TYPE_INT = 'int';
-	const TYPE_FLOAT = 'float';
-	const TYPE_DATE = 'date';
-
     public int $id;
+
     public string $name;
 
 	public string $type;
@@ -29,7 +27,7 @@ class TemplateProperty extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfTemplateProperty';
+		return 'EfTemplateProperty';
 	}
 
 
@@ -51,14 +49,14 @@ class TemplateProperty extends CakeEntity
 		}
 
 		switch ($this->type) {
-			case self::TYPE_INT:
+			case static::TypeInt:
 				$value = (int) $value;
 				break;
-			case self::TYPE_FLOAT:
+			case static::TypeFloat:
 				$value = (float) $value;
 				break;
-			case self::TYPE_DATE:
-				$value = \Cesys\Utils\DateTimeHelper::createValidFromFormat($value);
+			case static::TypeDate:
+				$value = DateTimeHelper::createValidFromFormat($value);
 				break;
 			default:
 				break;

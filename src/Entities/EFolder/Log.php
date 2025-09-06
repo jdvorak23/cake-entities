@@ -2,16 +2,12 @@
 
 namespace Cesys\CakeEntities\Entities\EFolder;
 
+use Cesys\CakeEntities\Entities\EFolder\Interfaces\ILog;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Nette\Utils\DateTime;
 
-class Log extends CakeEntity
+class Log extends CakeEntity implements ILog
 {
-	const OperationCreate = 'create';
-	const OperationUpdate = 'update';
-	const OperationDelete = 'delete';
-
-
 	public int $id;
 
 	public string $database;
@@ -38,7 +34,7 @@ class Log extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfLog';
+		return 'EfLog';
 	}
 
 	public function getData(): ?array

@@ -29,7 +29,7 @@ class ProcessNumber extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfProcessNumber';
+		return 'EfProcessNumber';
 	}
 
 	public function getLastFileInvoice(): ?FileInvoice

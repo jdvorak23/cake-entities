@@ -11,6 +11,6 @@ class FolderDatabase extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfFolderDatabase';
+		return 'EfFolderDatabase';
 	}
 }

@@ -48,7 +48,7 @@ class Folder extends CakeEntity
 	/**
 	 * @var MoneyTransaction[] folderId
 	 */
-	//public array $moneyTransactions;
+	public array $moneyTransactions;
 
 	/**
 	 * @var Reservation[] efFolderId
@@ -63,7 +63,7 @@ class Folder extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfFolder';
+		return 'EfFolder';
 	}
 
 	public function getYearFromNumber(): string

@@ -29,8 +29,6 @@ class Reservation extends CakeEntity implements IReservation
 
 	public ?int $efFolderId;
 
-	//public ?int $efProcessNumberId; todo smazat z db db @deprecated ???
-
 	public ?string $reservationStatus;
 
 	public ?string $paymentStatus;
@@ -86,7 +84,7 @@ class Reservation extends CakeEntity implements IReservation
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfAmadeusReservation';
+		return 'EfAmadeusReservation';
 	}
 
 
@@ -145,7 +143,7 @@ class Reservation extends CakeEntity implements IReservation
 
 	public function getTotalPayment(): float
 	{
-		return $this->getDeposit() + $this->getSupplement();
+		return $this->contract->currency->round($this->getDeposit() + $this->getSupplement());
 	}
 
 	/**

@@ -41,6 +41,6 @@ class Company extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfCompany';
+		return 'EfCompany';
 	}
 }

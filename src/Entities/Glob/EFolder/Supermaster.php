@@ -16,6 +16,6 @@ class Supermaster extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfSupermaster';
+		return 'EfSupermaster';
 	}
 }

@@ -56,8 +56,6 @@ class File extends CakeEntity implements IFile
 	public ?FileInvoice $fileInvoice;
 
 
-
-
     public string $path;
 
 	/**
@@ -70,7 +68,7 @@ class File extends CakeEntity implements IFile
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfFile';
+		return 'EfFile';
 	}
 
 	public static function getExcludedFromProperties(): array

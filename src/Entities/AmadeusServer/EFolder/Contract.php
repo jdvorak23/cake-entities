@@ -95,7 +95,7 @@ class Contract extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfAmadeusContract';
+		return 'EfAmadeusContract';
 	}
 
 	public function getTravelAgencyInumber(): string
@@ -153,12 +153,12 @@ class Contract extends CakeEntity
 
 	public function getTotalPayment(): float
 	{
-		return $this->getDeposit() + $this->getSupplement();
+		return $this->currency->round($this->getDeposit() + $this->getSupplement());
 	}
 
 	public function getTotalPaymentWithoutCommission(): float
 	{
-		return $this->getDepositWithoutCommission() + $this->getSupplementWithoutCommission();
+		return $this->currency->round($this->getDepositWithoutCommission() + $this->getSupplementWithoutCommission());
 	}
 
 

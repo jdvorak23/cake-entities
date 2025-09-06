@@ -46,7 +46,7 @@ class FileInvoice extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfFileInvoice';
+		return 'EfFileInvoice';
 	}
 
 	public function getTotalAmountToPay(): float

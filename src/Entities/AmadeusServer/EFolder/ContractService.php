@@ -2,13 +2,11 @@
 
 namespace Cesys\CakeEntities\Entities\AmadeusServer\EFolder;
 
+use Cesys\CakeEntities\Entities\AmadeusServer\Interfaces\IContractService;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 
-class ContractService extends CakeEntity
+class ContractService extends CakeEntity implements IContractService
 {
-	const KindPersonPrice = 1;
-	const KindServicePrice = 3;
-
 	public int $id;
 
 	public $bookingServiceId;
@@ -78,7 +76,7 @@ class ContractService extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfAmadeusContractService';
+		return 'EfAmadeusContractService';
 	}
 
 }

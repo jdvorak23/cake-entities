@@ -19,6 +19,6 @@ class Supplier extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfSupplier';
+		return 'EfSupplier';
 	}
 }

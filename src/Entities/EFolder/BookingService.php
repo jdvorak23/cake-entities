@@ -29,7 +29,7 @@ class BookingService extends CakeEntity implements IBookingService
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfBookingService';
+		return 'EfBookingService';
 	}
 
 }
