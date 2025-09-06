@@ -40,7 +40,7 @@ class Cache
 	private function setEntityCache(FindParams $findParams): void
 	{
 		$modelCache = $this->getModelCache($findParams->modelClass);
-		foreach ($modelCache->getCache() as $entityCache) {
+		foreach (array_reverse($modelCache->getCache()) as $entityCache) {
 			if ($findParams->isCacheCompatibleWith($entityCache->findParams)) {
 				$modelCache->addEntityCache(EntityCache::createFrom($entityCache, $findParams));
 				return;
@@ -50,22 +50,13 @@ class Cache
 		if ($this->useGlobalCache) {
 			$globalCache = $this->getModel($findParams->modelClass)->getModelCache();
 			/** @var EntityCache $entityCache */
-			foreach (array_reverse($globalCache->getCache(), true) as $entityCache) {
+			foreach ($globalCache->getCache() as $entityCache) {
 				if ($findParams->isCacheCompatibleWith($entityCache->findParams)) {
 					$modelCache->addEntityCache(EntityCache::createFrom($entityCache, $findParams));
 					return;
 				}
 			}
 		}
-
-		/*if ($globalModelCache = $this->globalCache[$findParams->modelClass] ?? null) {
-			foreach (array_reverse($globalModelCache->getCache(), true) as $entityCache) {
-				if ($findParams->isCacheCompatibleWith($entityCache->findParams)) {
-					$modelCache->addEntityCache(EntityCache::createFrom($entityCache, $findParams));
-					return;
-				}
-			}
-		}*/
 
 		$modelCache->addEntityCache(new EntityCache($findParams));
 	}

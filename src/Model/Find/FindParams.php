@@ -239,21 +239,42 @@ class FindParams
 	 */
 	public function isCacheCompatibleWith(self $findParams): bool
 	{
+		static $query;
+		static $pathCache;
+		if ( ! isset($query)) {
+			$query = new Query();
+			$query->onEnd[] = function () use (&$query) {
+				$query = null;
+			};
+			$pathCache = [];
+		}
+		$query->start($this->modelClass);
+		if (isset($pathCache[$this->getId()])) {
+			$query->end();
+			return true;
+		}
+		$pathCache[$this->getId()] = true;
+
 		if ($this === $findParams) {
 			// Sem by se stejné params dostat neměly, ale kdoví jak se to použije v budoucnu, ano, pokud jsou stejná instance, tak určitě jsou
+			$query->end();
 			return true;
 		}
 		if ($this->modelClass !== $findParams->modelClass) {
+			$query->end();
 			return false;
 		}
 		if ( ! $this->containsParams->isEqualTo($findParams->containsParams)) {
+			$query->end();
 			return false;
 		}
 		foreach (array_intersect_key($this->contains, $findParams->contains) as $modelClass => $containedFindParams) {
-			if ( ! $containedFindParams->containsParams->isEqualTo($findParams->contains[$modelClass]->containsParams)) {
+			if ( ! $containedFindParams->isCacheCompatibleWith($findParams->contains[$modelClass])) {
+				$query->end();
 				return false;
 			}
 		}
+		$query->end();
 		return true;
 	}
 

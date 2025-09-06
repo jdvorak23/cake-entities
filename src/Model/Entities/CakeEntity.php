@@ -16,9 +16,6 @@ abstract class CakeEntity
      */
 	protected static array $excludedFormDbArrays = [];
 
-	private ColumnProperty $primaryColumnProperty;
-
-
     /**
      * @return int|string|null
      */
@@ -48,15 +45,12 @@ abstract class CakeEntity
 	 */
 	private function getPrimaryColumnProperty(): ColumnProperty
 	{
-		if (isset($this->primaryColumnProperty)) {
-			return $this->primaryColumnProperty;
-		}
-
-		$primaryColumnProperty = EntityHelper::getColumnProperties(static::class)[static::getPrimaryPropertyName()] ?? null;
+		$primaryPropertyName = static::getPrimaryPropertyName();
+		$primaryColumnProperty = EntityHelper::getColumnProperties(static::class)[$primaryPropertyName] ?? null;
 		if ( ! $primaryColumnProperty) {
-			throw new \Exception('Primary column property not found.');
+			throw new \LogicException("Primary column property for property '$primaryPropertyName' not found.");
 		}
-		return $this->primaryColumnProperty = $primaryColumnProperty;
+		return $primaryColumnProperty;
 	}
 
 
@@ -116,6 +110,7 @@ abstract class CakeEntity
     /**
      * @param string $modelClass
      * @return string původní $modelClass
+	 * @deprecated
      */
     public static function setModelClass(string $modelClass): string
     {
