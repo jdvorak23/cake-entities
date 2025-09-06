@@ -29,7 +29,7 @@ class FindParams
 	 * Tyto jsou spojeny s $containsParams před voláním find
 	 * @var FindConditions
 	 */
-	public FindConditions $conditions;
+	private FindConditions $conditions;
 
 	/**
 	 * Třída modelu těchto FindParams
@@ -65,38 +65,6 @@ class FindParams
 	{
 		$this->conditions = $conditions;
 	}
-
-
-	/*public function getDescendants(): array
-	{
-		static $query;
-		/** @var static[] $pathCache *//*
-		static $pathCache;
-		if ( ! isset($query)) {
-			$query = new Query();
-			$pathCache = [];
-			$query->onEnd[] = function() use (&$query) {
-				$query = null;
-			};
-		}
-
-		if (isset($pathCache[$this->getId()])) {
-			return [];
-		}
-
-		$query->start($this->getId());
-		$pathCache[$this->getId()] = $this;
-
-		foreach ($this->contains as $containedFindParams) {
-			$containedFindParams->getDescendants();
-		}
-
-		if ($query->end()) {
-			return $pathCache;
-		}
-
-		return [];
-	}*/
 
 
 	/**
@@ -158,7 +126,7 @@ class FindParams
 		return spl_object_id($this);
 	}
 
-	public static function create(array $contains, bool $useCache = false): self
+	public static function create(array $contains): self
 	{
 		if (count($contains) !== 1) {
 			throw new \Exception('Contains can only have one element');
@@ -222,7 +190,7 @@ class FindParams
 
 		if ($query->end()) {
 			// Není v callbacku, musí být až jako poslední věc před return, ostatní volání end() nemohou být poslední
-			$instance = static::replaceIdentical($instance, $useCache);
+			$instance = static::replaceIdentical($instance);
 		}
 		return $instance;
 	}
@@ -279,32 +247,6 @@ class FindParams
 	}
 
 
-	public function isCacheShareableFrom(self $findParams): bool
-	{
-		if ($this->getId() === $findParams->getId()) {
-			// Sem by se stejné params dostat neměly, ale kdoví jak se to použije v budoucnu, ano, pokud jsou stejná instance, tak určitě jsou
-			return true;
-		}
-		if ($this->modelClass !== $findParams->modelClass) {
-			return false;
-		}
-		if (array_diff_key($this->contains, $findParams->contains)) {
-			// Použít cache z jiných FindParams lze pouze, pokud tyto FindParams mají všechny contains modely našich FindParams
-			return false;
-		}
-		if ( ! $this->containsParams->isEqualTo($findParams->containsParams)) {
-			return false;
-		}
-
-		foreach (array_intersect_key($this->contains, $findParams->contains) as $modelClass => $containedFindParams) {
-			if ( ! $containedFindParams->containsParams->isEqualTo($findParams->contains[$modelClass]->containsParams)) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-
 	/**
 	 * Musí být zcela stejné
 	 * @param FindParams $findParams
@@ -312,8 +254,6 @@ class FindParams
 	 */
 	public function isEqualTo(self $findParams): bool
 	{
-		//bdump($this);
-		//bdump($contains);
 		static $query;
 		static $pathCache;
 		if ( ! isset($query)) {
@@ -340,8 +280,6 @@ class FindParams
 			count($this->contains) !== count($findParams->contains)
 			|| array_diff_key($this->contains, $findParams->contains)
 		) {
-			//bdump(count($this->contains), "chcip");
-			//bdump(count($contains->contains));
 			$query->end();
 			return false;
 		}
@@ -401,27 +339,20 @@ class FindParams
 
 	/**
 	 * @return EntityAppModelTrait&\AppModel
+	 * @deprecated
 	 */
 	public function getModel()
 	{
 		return $this->getModelInTrait($this->modelClass);
 	}
 
-	private static function replaceIdentical(self $originalFindParams, bool $useCache): self
+	private static function replaceIdentical(self $originalFindParams): self
 	{
 		//bdump($originalFindParams, 'UNREPLACED FindParams');
 		$cache = [];
 		$queue = new \SplQueue();
 		$queue[] = $originalFindParams;
 		$containsToAppend = [];
-		/*if ($useCache) {
-			foreach ($originalFindParams->getModel()->getModelCache()->getModelCache($originalFindParams->modelClass) as $entityCache) {
-				$findParams = $entityCache->findParams;
-				if ($findParams->isEqualTo($originalFindParams)) {
-					return $findParams;
-				}
-			}
-		}*/
 		foreach ($queue as $findParams) {
 			if (isset($cache[$findParams->modelClass][$findParams->getId()])) {
 				// Stejný node, který už jsme prošli / procházíme, na jiném místě ve stromě
@@ -448,9 +379,7 @@ class FindParams
 				$queue[] = $modelContains;
 			}
 		}
-		/*if ($useCache) {
-			exit;
-		}*/
+
 		return $originalFindParams;
 	}
 

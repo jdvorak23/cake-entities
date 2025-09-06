@@ -37,6 +37,7 @@ class EntityHelper
 		$entityClass = get_class($entity);
 		$modelClass = $entityClass::getModelClass();
 		$data = $data[$modelClass] ?? $data;
+		$data = array_intersect_key($data, static::getColumnPropertiesByColumn($entityClass));
 		foreach ($data as $column => $value) {
 			$columnProperty = static::getColumnPropertiesByColumn($entityClass)[$column] ?? null;
 			if ( ! $columnProperty) {

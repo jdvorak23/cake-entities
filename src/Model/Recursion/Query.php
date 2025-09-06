@@ -26,14 +26,14 @@ class Query
 	}
 
 
-	public function end(... $params): bool
+	public function end(): bool
 	{
 		array_pop($this->activePath);
 		$callbacks = array_pop($this->onModelEnd);
 		Arrays::invoke($callbacks);
 		$isEnd = ! $this->activePath;
 		if ($isEnd) {
-			Arrays::invoke($this->onEnd, ...$params);
+			Arrays::invoke($this->onEnd);
 		}
 
 		return $isEnd;
@@ -70,15 +70,6 @@ class Query
 		$activePath = $this->activePath;
 		array_pop($activePath);
 		return ! in_array($this->getCurrentModelClass(), $activePath, true);
-	}
-
-	public function isPreviousModelTheSame(): bool
-	{
-		if ($this->isOriginalCall()) {
-			return false;
-		}
-		$index = array_key_last($this->activePath);
-		return $this->activePath[$index] === $this->activePath[$index - 1];
 	}
 
 }

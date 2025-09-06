@@ -87,8 +87,5 @@ class ModelCache
 			}
 			$this->cache[$entityCache->findParams->getId()] = $entityCache;
 		}
-
-
-
 	}
 }

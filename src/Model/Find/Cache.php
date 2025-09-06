@@ -61,15 +61,4 @@ class Cache
 		$modelCache->addEntityCache(new EntityCache($findParams));
 	}
 
-
-	/*public function getModelCache(string $modelClass): array
-	{
-		return $this->cache[$modelClass] ?? [];
-	}*/
-
-	public function getCache(): array
-	{
-		return $this->cache;
-	}
-
 }

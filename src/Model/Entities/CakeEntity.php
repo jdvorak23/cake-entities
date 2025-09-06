@@ -8,13 +8,16 @@ abstract class CakeEntity
 {
     /**
      * @var string[][]
+	 * @deprecated
      */
     protected static array $modelClasses = [];
 
     /**
      * @var array[]
+	 * @deprecated
      */
 	protected static array $excludedFormDbArrays = [];
+
 
     /**
      * @return int|string|null
@@ -82,13 +85,14 @@ abstract class CakeEntity
      */
     public static function getExcludedFromDbArray(): array
     {
-        return static::$excludedFormDbArrays[static::class] ??= ['created', 'modified', 'createdBy', 'modifiedBy'];
+        return ['created', 'modified', 'createdBy', 'modifiedBy'];
     }
 
 
     /**
      * @param array $excludedFromDbArray
      * @return string[] původní $excludedFromDbArray
+	 * @deprecated
      */
     public static function setExcludedFromDbArray(array $excludedFromDbArray): array
     {
@@ -103,7 +107,7 @@ abstract class CakeEntity
      */
     public static function getModelClass(): string
     {
-        return static::$modelClasses[static::class] ??= Reflection::getReflectionClass(static::class)->getShortName();
+        return 'E' . Reflection::getReflectionClass(static::class)->getShortName();
     }
 
 

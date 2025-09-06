@@ -30,15 +30,12 @@ class FindQuery extends Query
 
 	private bool $isInFindParamsRecursion = false;
 
-	public bool $useCache;
-
 	public function __construct(array $fullContains, bool $useCache, ?CakeParams $originalParams = null)
 	{
-		$this->useCache = $useCache;
 		if ($originalParams !== null) {
 			$this->originalParams = $originalParams;
 		}
-		$this->findParams = FindParams::create($fullContains, $useCache);
+		$this->findParams = FindParams::create($fullContains);
 	//bdump($this->findParams, 'FINAL Contains');
 		$this->cache = new Cache($useCache);
 	}
@@ -63,8 +60,6 @@ class FindQuery extends Query
 			});
 		}
 		$this->activeFindParamsPath[] = $findParams;
-		//bdump("dd");
-//$this->cache->setEntityCache($findParams); todo asi neni potreba getter zinit?
     }
 
     public function findEnd(): bool
@@ -117,43 +112,14 @@ class FindQuery extends Query
 	/**
 	 * @param FindParams|null $findParams
 	 * @return bool
-	 *  todo asi shit smazat
+	 *  todo asi ukladat nejak?
 	 */
 	public function isRecursiveToSelfEndlessCacheCompatible(?FindParams $findParams = null): bool
 	{
 		$findParams = $findParams ?? $this->getFindParams();
 		return $findParams->isRecursiveToSelfEndlessCacheCompatible();
-		/*static $query;
-		static $pathCache;
-		if ( ! isset($query)) {
-			$query = new Query();
-			$query->onEnd[] = function () use (&$query) {
-				$query = null;
-			};
-			$pathCache = [];
-		}
-		$query->start($findParams->modelClass);
-
-		if (isset($pathCache[$findParams->getId()])) {
-			$query->end();
-			return true;
-		}
-		$pathCache[$findParams->getId()] = true;
-
-		if ( ! $childFindParams = $findParams->contains[$findParams->modelClass] ?? null) {
-			$query->end();
-			return false;
-		}
-
-		if ( ! $findParams->isCacheCompatibleWith($childFindParams)) {
-			$query->end();
-			return false;
-		}
-
-		$return = $this->isRecursiveToSelfEndlessCacheCompatible($childFindParams);
-		$query->end();
-		return $return;*/
 	}
+
 
 	public function getEntityCache(?FindParams $findParams = null): EntityCache
 	{
@@ -196,27 +162,6 @@ class FindQuery extends Query
 		}
 
 		return $findParams;
-	}
-
-
-	public function getBackwardContains()
-	{
-		$interestedModel = $this->getCurrentModelClass();
-
-		$result = [];
-		foreach ($this->getFindParams()->contains as $modelClass => $contains) {
-			/*if ($modelClass === $interestedModel) {
-				continue;
-			}*/
-			foreach ($contains->contains as $modelContains) {
-				if ($modelContains->modelClass === $interestedModel && $this->getFindParams() === $modelContains) {
-					$result[] = $modelClass;
-				}
-			}
-
-		}
-
-		return $result;
 	}
 
 }

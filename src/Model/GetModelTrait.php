@@ -15,7 +15,7 @@ trait GetModelTrait
      * @template T of \AppModel
      * @param class-string<T> $modelClass
      * @return T
-     * @throws \InvalidArgumentException Poud $modelClass není string se třídou existující instance \AppModel
+     * @throws \InvalidArgumentException Poud $modelClass není string se třídou existující třídy \AppModel
      */
     public function getModel($modelClass)
     {

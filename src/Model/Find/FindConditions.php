@@ -7,11 +7,6 @@ class FindConditions
 	private FindOrConditions $or;
 
 	/**
-	 * @var array<string, mixed>
-	 */
-	public array $keyConditions = [];
-
-	/**
 	 * @var array<int, string>
 	 */
 	public array $stringConditions = [];
