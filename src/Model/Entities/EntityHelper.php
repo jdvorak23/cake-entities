@@ -3,6 +3,7 @@
 namespace Cesys\CakeEntities\Model\Entities;
 
 use Cesys\CakeEntities\Model\EntityAppModelTrait;
+use Cesys\CakeEntities\Model\GetModelStaticTrait;
 use Cesys\Utils\Arrays;
 use Cesys\Utils\Reflection;
 use Cesys\Utils\Strings;
@@ -12,6 +13,7 @@ use Cesys\Utils\Strings;
  */
 class EntityHelper
 {
+	use GetModelStaticTrait;
     private static array $cache = [];
 
 	public static function toDbArray(CakeEntity $entity): array
@@ -513,33 +515,5 @@ class EntityHelper
 		}
 
 		return $columnProperty;
-	}
-
-
-
-
-	/**
-	 * @template T of \AppModel
-	 * @param class-string<T> $modelClass
-	 * @return T
-	 * @throws \InvalidArgumentException Poud $modelClass není string se třídou potomka \AppModel
-	 */
-	private static function getModelStatic(string $modelClass)
-	{
-		if ( ! class_exists($modelClass, false) && ! \App::import('Model', $modelClass)) {
-			// Soubor není ani načten, ani ho nelze najít mezi modely
-			throw new \InvalidArgumentException("Model '$modelClass' does not exists.");
-		}
-		if ( ! is_a($modelClass, \AppModel::class, true)) {
-			// Není to instanceof AppModel
-			throw new \InvalidArgumentException("Model '$modelClass' is not instance of AppModel.");
-		}
-		if (\ClassRegistry::isKeySet($modelClass)) {
-			// Model už je vytvořen v ClassRegistry
-			return \ClassRegistry::getObject($modelClass);
-		}
-
-		// Model se vytvoří pomocí ClassRegistry
-		return \ClassRegistry::init($modelClass);
 	}
 }

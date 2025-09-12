@@ -161,11 +161,13 @@ class Folder extends CakeEntity
 				$invoices[$invoice->id] = $invoice;
 			}
 		}
+		/* todo
 		foreach ($this->bookings as $booking) {
 			if ($booking->invoice) {
 				$invoices[$booking->invoice->id] = $booking->invoice;
 			}
 		}
+		*/
 		foreach ($this->processNumbers as $processNumber) {
 			foreach ($processNumber->fileInvoices as $fileInvoice) {
 				$invoices += $fileInvoice->invoices;
@@ -358,5 +360,18 @@ class Folder extends CakeEntity
 			$total += $transaction->getAmountInDefaultCurrency();
 		}
 		return $total;
+	}
+
+
+	/**
+	 * Todo rozšířit až booking
+	 * @return string|null
+	 */
+	public function getCustomerCountry(): ?string
+	{
+		if ($this->reservations) {
+			return current($this->reservations)->customerCountry;
+		}
+		return null;
 	}
 }

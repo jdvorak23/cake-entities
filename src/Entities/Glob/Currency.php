@@ -2,9 +2,10 @@
 
 namespace Cesys\CakeEntities\Entities\Glob;
 
+use Cesys\CakeEntities\Entities\Glob\Interfaces\ICurrency;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 
-class Currency extends CakeEntity
+class Currency extends CakeEntity implements ICurrency
 {
 	public int $id;
 

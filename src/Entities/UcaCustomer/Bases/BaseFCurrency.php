@@ -2,9 +2,10 @@
 
 namespace Cesys\CakeEntities\Entities\UcaCustomer\Bases;
 
+use Cesys\CakeEntities\Entities\UcaCustomer\Interfaces\IFCurrency;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 
-abstract class BaseFCurrency extends CakeEntity
+abstract class BaseFCurrency extends CakeEntity implements IFCurrency
 {
 	public int $id;
 

@@ -18,6 +18,7 @@ use Cesys\CakeEntities\Model\Recursion\Query;
 use Cesys\CakeEntities\Model\Recursion\Timer;
 use Cesys\Utils\Arrays;
 use Cesys\Utils\Reflection;
+use Nette\InvalidStateException;
 
 /**
  * Pokud v use tříde je definován konstruktor, je v něm potřeba volat $this->lazyModelTraitConstructor();
@@ -36,26 +37,19 @@ trait EntityAppModelTrait
      */
     use ModelLazyModelTrait;
 
-	static private array $SERVER_DEFAULT_SUB_NAMESPACE = [
-		's_server2' => 'server',
-		't_server2' => 'server',
-		'u_server2' => 'server',
-	];
 
     protected array $contains = [];
 
-	protected bool $isStatic = false;
+	protected array $otherContains = [];
 
-	/**
-	 * @var array|false
-	 */
-	protected $fetchedAll = false;
-
+	private static ?string $usedOtherContains = null;
 
     /**
      * @var array|null
      */
     private ?array $temporaryContains = null;
+
+	protected array $defaultContainsParams = [];
 
     /**
      * Uložené default hodnoty všech sloupců tabulky, které mají default
@@ -89,6 +83,7 @@ trait EntityAppModelTrait
 			$query = new Query();
 			$query->onEnd[] = function () use (&$query, $resetTemporaryContains) {
 				if ($resetTemporaryContains) {
+					self::$usedOtherContains = null;
 					foreach (array_unique($query->path) as $modelClass) {
 						/** @var static $Model */
 						$Model = $this->getModel($modelClass);
@@ -215,6 +210,25 @@ trait EntityAppModelTrait
     }
 
 
+	/**
+	 * @return string[] -> vrací pole se všemi modely, jejichž entity jsou v definované vazbě tohoto modelu = maximální možné contains tohoto modelu
+	 */
+	public function getFullModelContains()
+	{
+		$relatedProperties = array_merge(
+			EntityHelper::getPropertiesOfReferencedEntities(static::getEntityClass()),
+			EntityHelper::getPropertiesOfRelatedEntities(static::getEntityClass())
+		);
+		$models = [];
+		foreach ($relatedProperties as $relatedProperty) {
+			$modelClass = $relatedProperty->relatedColumnProperty->entityClass::getModelClass();
+			$models[$modelClass] = 1;
+		}
+
+		return array_keys($models);
+	}
+
+
     /**
      * Platí jen pro první volání findEntities, včetně volání na připojení entit
      * @param ?array $contains null => reset (když je null, nic to nedělá)
@@ -224,6 +238,25 @@ trait EntityAppModelTrait
     {
         $this->temporaryContains = $contains;
     }
+
+
+	/**
+	 * Platí jen pro první volání findEntities, včetně volání na připojení entit
+	 * Použije se jedno z contains, definované v poli static::otherContains
+	 *
+	 * @param string $key
+	 * @return void
+	 */
+	public function setOtherContains(?string $key): void
+	{
+		static::$usedOtherContains = $key;
+	}
+
+
+	public function getDefaultContainsParams(): array
+	{
+		return $this->defaultContainsParams;
+	}
 
 
     /**
@@ -305,7 +338,7 @@ trait EntityAppModelTrait
     public function findEntities(array $params = [], ?array $contains = null, bool $useCache = false): array
     {
         if ( ! $findQuery = $this->getFindQuery()) {
-			Timer::start('$$FindStart$$');
+			Timer::start('$$FindStart$$ - ' . count(self::$findQueries));
 			// Nové volání, inicializace FindQuery
 			// Musíme získat aktuální findParams (contains plně normalizované a kompletní na dané nastavení)
 		//bdump($contains, 'originalContains');
@@ -417,6 +450,8 @@ trait EntityAppModelTrait
 			}
 			// Fields jsou vždy všechny co jsou na entitě, jinak psycho
 			$params['fields'] = $this->getFields();
+			// Vždy -1
+			$params['recursive'] = -1;
 			$entitiesData = $this->find('all', $params);
 			foreach ($entitiesData as $entityData) {
 				$primary = $entityData[$this->alias][$this->primaryKey];
@@ -508,7 +543,7 @@ trait EntityAppModelTrait
 			array_pop(self::$findQueries);
 			Timer::stop();
 			Timer::getResults();
-			bdump($findQuery, static::class);
+			//bdump($findQuery, static::class);
 			//bdump($entities);
 			// Debug
 			$checkedEntities = [];
@@ -634,18 +669,6 @@ trait EntityAppModelTrait
 					EntityHelper::appendFromDbValue($entity, $columnProperty, $value);
 				}
 			}
-            // Pokud nebylo id, přiřadí se todo smazat CESYS
-            if ($entity->getPrimary() === null) {
-                $entity->setPrimary($this->id);
-            }
-
-            // Todo mozna priradit i zbytek co se vratilo, ale zatím není jistý, pokud chceme defaulty, meli bychom entitu spravne vytvaret
-            if (isset($result[$this->alias]['created']) && ($columnProperty = EntityHelper::getColumnProperties(static::getEntityClass())['created'] ?? null)) {
-				EntityHelper::appendFromDbValue($entity, $columnProperty, $result[$this->alias]['created']);
-            }
-            if (isset($result[$this->alias]['modified'])  && ($columnProperty = EntityHelper::getColumnProperties(static::getEntityClass())['modified'] ?? null)) {
-				EntityHelper::appendFromDbValue($entity, $columnProperty, $result[$this->alias]['modified']);
-            }
         }
 
         return (bool) $result;
@@ -761,7 +784,14 @@ trait EntityAppModelTrait
     private function getNormalizedContains(?array $contains = null, ?array $temporaryContains = null): array
     {
         $normalizedContains = [];
-        $defaultContains = $temporaryContains ?? $this->contains;
+		if (isset($temporaryContains)) {
+			$defaultContains = $temporaryContains;
+		} elseif (isset(static::$usedOtherContains) && isset($this->otherContains[static::$usedOtherContains])) {
+			$defaultContains = $this->otherContains[static::$usedOtherContains];
+		} else {
+			$defaultContains = $this->contains;
+		}
+
         foreach ($contains ?? $defaultContains as $key => $value) {
             if (is_array($value) || $value === null) {
                 $normalizedContains[$key] = $value;

@@ -134,4 +134,44 @@ class File extends CakeEntity implements IFile
 		}
 	}
 
+
+	public function isDeletable(): bool
+	{
+		if ( ! $this->active) {
+			return false;
+		}
+
+		if ($this->inputTemplateId) {
+			return false;
+		}
+
+		if ($this->fileInvoice) {
+			return false;
+		}
+
+		return true;
+	}
+
+
+	public function isRemovable(): bool
+	{
+		if ( ! $this->active) {
+			return false;
+		}
+
+		if ( ! $this->folderId) {
+			return false;
+		}
+
+		if ( ! $this->inputTemplateId) {
+			return false;
+		}
+
+		if ($this->fileInvoice) {
+			return false;
+		}
+
+		return true;
+	}
+
 }

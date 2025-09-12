@@ -35,7 +35,7 @@ class FindQuery extends Query
 		if ($originalParams !== null) {
 			$this->originalParams = $originalParams;
 		}
-		$this->findParams = FindParams::create($fullContains);
+		$this->findParams = FindParams::create($fullContains, ! isset($this->originalParams));
 	//bdump($this->findParams, 'FINAL Contains');
 		$this->cache = new Cache($useCache);
 	}
@@ -43,7 +43,7 @@ class FindQuery extends Query
 	public function findStart(string $modelClass, ?callable $endCallback = null)
     {
 		$this->start($modelClass, $endCallback);
-		Timer::start($modelClass . count($this->path));
+		Timer::start(spl_object_id($this) . ' - ' . $modelClass . count($this->path));
 		$findParams = $this->getFindParamsInPath();
 		// Do $activeFindParamsPath připřadíme až poté, při vyhledávání isInFindParamsRecursion potřebujeme activeFindParamsPath ještě bez přidaných FindParams
 		$isStartingRecursion = ! $this->isInFindParamsRecursion && in_array($findParams, $this->activeFindParamsPath, true);

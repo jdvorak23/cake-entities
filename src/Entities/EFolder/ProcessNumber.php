@@ -10,12 +10,14 @@ use Cesys\CakeEntities\Model\Entities\CakeEntity;
 class ProcessNumber extends CakeEntity
 {
 	public int $id;
-
+	public int $folderDatabaseId;
 	public int $folderId;
 
 	public int $supplierId;
 
 	public string $number;
+
+	public bool $active;
 
 	public Folder $folder;
 
@@ -36,6 +38,9 @@ class ProcessNumber extends CakeEntity
 	{
 		$foundFileInvoice = null;
 		foreach ($this->fileInvoices as $fileInvoice) {
+			if ( ! $fileInvoice->active) {
+				continue;
+			}
 			if ( ! $foundFileInvoice) {
 				$foundFileInvoice = $fileInvoice;
 			} elseif ($fileInvoice->date > $foundFileInvoice->date) {
@@ -65,5 +70,39 @@ class ProcessNumber extends CakeEntity
 		}
 
 		return $invoices;
+	}
+
+
+	/**
+	 * @param int $fInvoiceId
+	 * @return ?Invoice
+	 */
+	public function getInvoiceOfFInvoice(?int $fInvoiceId): ?Invoice
+	{
+		if ($fInvoiceId === null) {
+			return null;
+		}
+		foreach ($this->fileInvoices as $fileInvoice) {
+			foreach ($fileInvoice->invoices as $invoice) {
+				if ($invoice->fInvoice->id === $fInvoiceId) {
+					return $invoice;
+				}
+			}
+		}
+		return null;
+	}
+
+
+	public function isDeletable(): bool
+	{
+		if ( ! $this->active) {
+			return false;
+		}
+
+		if ($this->fileInvoices) {
+			return false;
+		}
+
+		return true;
 	}
 }

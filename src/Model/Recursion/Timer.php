@@ -38,7 +38,7 @@ class Timer
 		$result['$$total$$'] = $total;
 		self::$results[] = $result;
 		self::$passed = [];
-		self::$timers = [];
+		//self::$timers = [];
 		return $result;
 	}
 

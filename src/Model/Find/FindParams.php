@@ -3,14 +3,13 @@
 namespace Cesys\CakeEntities\Model\Find;
 
 use Cesys\CakeEntities\Model\EntityAppModelTrait;
+use Cesys\CakeEntities\Model\GetModelStaticTrait;
 use Cesys\CakeEntities\Model\GetModelTrait;
 use Cesys\CakeEntities\Model\Recursion\Query;
 
 class FindParams
 {
-	use GetModelTrait {
-		getModel as getModelInTrait; // přejmenování metody
-	}
+	use GetModelStaticTrait;
 
 	/**
 	 * FindParams modelů, jejichž entity se mají k entitě odpovídající FindParams připojit
@@ -126,7 +125,7 @@ class FindParams
 		return spl_object_id($this);
 	}
 
-	public static function create(array $contains): self
+	public static function create(array $contains, bool $isSystem = false): self
 	{
 		if (count($contains) !== 1) {
 			throw new \Exception('Contains can only have one element');
@@ -157,7 +156,11 @@ class FindParams
 			$similarFindParams = $pathCache[$index];
 		}
 
-		$containsParams = ContainsParams::create($contains[$modelClass]);
+		if ($query->isOriginalCall() && ! $isSystem) {
+			$containsParams = ContainsParams::create($contains[$modelClass]);
+		} else {
+			$containsParams = ContainsParams::create($contains[$modelClass], static::getModelStatic($modelClass)->getDefaultContainsParams());
+		}
 
 		if (isset($similarFindParams)) {
 			// Jsme v 'null'
@@ -333,17 +336,6 @@ class FindParams
 		$return = $childFindParams->isRecursiveToSelfEndlessCacheCompatible();
 		$query->end();
 		return $return;
-	}
-
-
-
-	/**
-	 * @return EntityAppModelTrait&\AppModel
-	 * @deprecated
-	 */
-	public function getModel()
-	{
-		return $this->getModelInTrait($this->modelClass);
 	}
 
 	private static function replaceIdentical(self $originalFindParams): self

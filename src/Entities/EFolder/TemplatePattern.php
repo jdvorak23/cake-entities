@@ -19,8 +19,6 @@ class TemplatePattern extends CakeEntity
 
 	public ?string $dateFormat;
 
-    public string $name;
-
     public ?DateTime $created;
 
     public ?DateTime $modified;

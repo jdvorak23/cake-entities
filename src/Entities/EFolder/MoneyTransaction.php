@@ -11,7 +11,7 @@ use Nette\Utils\DateTime;
 class MoneyTransaction extends CakeEntity implements IMoneyTransaction
 {
 	public int $id;
-	
+	public int $folderDatabaseId;
 	public int $folderId;
 	
 	public ?int $fBankTransactionId;
@@ -53,6 +53,8 @@ class MoneyTransaction extends CakeEntity implements IMoneyTransaction
 	public bool $isProspective;
 
 	public bool $checked;
+
+	public bool $active;
 
 	public FCurrency $fCurrency;
 
@@ -105,11 +107,15 @@ class MoneyTransaction extends CakeEntity implements IMoneyTransaction
 			// Transakce, která je checked, nemůže být měněna
 			return false;
 		}
+
 		if ($this->isProspective) {
 			// Výhledová transakce nelze editovat, je automatická
 			return false;
 		}
 
+		if ( ! $this->active) {
+			return false;
+		}
 		return true;
 	}
 
@@ -119,11 +125,15 @@ class MoneyTransaction extends CakeEntity implements IMoneyTransaction
 			// Transakce, která je checked nemůže být měněna
 			return false;
 		}
+
 		if ($this->isProspective) {
 			// Výhledová transakce nelze chcecknout
 			return false;
 		}
 
+		if ( ! $this->active) {
+			return false;
+		}
 		return true;
 	}
 
@@ -136,6 +146,10 @@ class MoneyTransaction extends CakeEntity implements IMoneyTransaction
 
 		if ($this->isProspective) {
 			// Výhledová transakce nelze smazat - je automatická a okamžitě by se zase vygenerovala
+			return false;
+		}
+
+		if ( ! $this->active) {
 			return false;
 		}
 

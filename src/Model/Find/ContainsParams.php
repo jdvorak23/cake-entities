@@ -50,27 +50,39 @@ class ContainsParams
 	 */
 	private $callbacks = true;
 
-	public static function create(array $params = []): self
+	public static function create(array $params = [], array $defaultParams = []): self
 	{
 		$instance = new static();
 
 		if ( ! empty($params['conditions'])) {
 			$instance->setConditions($params['conditions']);
+		} elseif ( ! empty($defaultParams['conditions'])) {
+			$instance->setConditions($defaultParams['conditions']);
 		}
 		if (isset($params['order'])) {
 			$instance->setOrder($params['order']);
+		} elseif ( ! empty($defaultParams['order'])) {
+			$instance->setOrder($defaultParams['order']);
 		}
 		if (isset($params['limit'])) {
 			$instance->setLimit($params['limit']);
+		} elseif ( ! empty($defaultParams['limit'])) {
+			$instance->setLimit($defaultParams['limit']);
 		}
 		if (isset($params['page'])) {
 			$instance->setPage($params['page']);
+		} elseif ( ! empty($defaultParams['page'])) {
+			$instance->setPage($defaultParams['page']);
 		}
 		if (isset($params['offset'])) {
 			$instance->setOffset($params['offset']);
+		} elseif ( ! empty($defaultParams['offset'])) {
+			$instance->setOffset($defaultParams['offset']);
 		}
 		if (isset($params['callbacks'])) {
 			$instance->setCallbacks($params['callbacks']);
+		} elseif ( ! empty($defaultParams['callbacks'])) {
+			$instance->setCallbacks($defaultParams['callbacks']);
 		}
 
 		return $instance;
