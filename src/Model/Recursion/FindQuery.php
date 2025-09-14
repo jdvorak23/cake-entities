@@ -127,15 +127,14 @@ class FindQuery extends Query
 	}
 
 
-	public function getOriginalParams(): CakeParams
+	public function getOriginalParams(): ?CakeParams
 	{
-		return $this->originalParams;
+		return $this->originalParams ?? null;
 	}
 
 
 	/**
 	 * Vrátí část větve původních FindParams, které odpovídají aktuální cestě - nebo aktuální cestě + $appendToPath
-	 * Musí se volat poprvé ve findStart() ještě před
 	 * @param array $appendToPath
 	 * @return FindParams
 	 */

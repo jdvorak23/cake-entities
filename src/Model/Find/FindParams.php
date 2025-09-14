@@ -2,9 +2,7 @@
 
 namespace Cesys\CakeEntities\Model\Find;
 
-use Cesys\CakeEntities\Model\EntityAppModelTrait;
 use Cesys\CakeEntities\Model\GetModelStaticTrait;
-use Cesys\CakeEntities\Model\GetModelTrait;
 use Cesys\CakeEntities\Model\Recursion\Query;
 
 class FindParams
@@ -26,9 +24,10 @@ class FindParams
 	/**
 	 * Další conditions, tyto jsou přidávány frameworkem pro vyhledávání entit v relaci
 	 * Tyto jsou spojeny s $containsParams před voláním find
-	 * @var FindConditions
+	 * Klíč = useDbConfig
+	 * @var FindConditions[]
 	 */
-	private FindConditions $conditions;
+	private array $findConditions;
 
 	/**
 	 * Třída modelu těchto FindParams
@@ -46,23 +45,37 @@ class FindParams
 	/**
 	 * Zde se při přípravě FindConditions ukládají indexy, které se týkají příštího volání find
 	 * Tj. entity získané voláním find budou indexovány na tyto indexy
-	 * @var array
+	 * 1. Klíč = useDbConfig
+	 * @var string[][]
 	 */
-	private array $nextUsedIndexes = [];
+	private array $nextUsedIndexes;
 
 	public function __construct(string $modelClass)
 	{
 		$this->modelClass = $modelClass;
+		$this->getConditions();
 	}
 
 	public function getConditions(): FindConditions
 	{
-		return $this->conditions ??= new FindConditions();
+		return $this->findConditions[$this->getUseDbConfig()] ??= new FindConditions();
 	}
 
 	public function setConditions(FindConditions $conditions): void
 	{
-		$this->conditions = $conditions;
+		$this->findConditions[$this->getUseDbConfig()] = $conditions;
+	}
+
+
+	public  function getUseDbConfigs(): array
+	{
+		return array_keys($this->findConditions);
+	}
+
+
+	public function getUseDbConfig(): string
+	{
+		return (string) static::getModelStatic($this->modelClass)->useDbConfig;
 	}
 
 
@@ -96,28 +109,34 @@ class FindParams
 		}
 	}
 
-	public function afterFind(): void
+	public function afterFind($lower = true): void
 	{
-		$this->willBeUsed--;
-		if ($this->willBeUsed < 0) {
-			bdump($this, 'COZEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE XXXXXXXXXXXXXXx - CHYBA');
+		if ($lower) {
+			$this->willBeUsed--;
+			if ($this->willBeUsed < 0) {
+				bdump($this, 'COZEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE XXXXXXXXXXXXXXx - CHYBA');
+			}
 		}
+
 		$this->nextUsedIndexes = [];
+		foreach ($this->findConditions as $findConditions) {
+			$findConditions->clear();
+		}
 	}
 
 	public function setNextUsedIndex(string $index): void
 	{
-		$this->nextUsedIndexes[$index] = $index;
+		$this->nextUsedIndexes[$this->getUseDbConfig()][$index] = $index;
 	}
 
 	public function removeNextUsedIndex(string $index): void
 	{
-		unset($this->nextUsedIndexes[$index]);
+		unset($this->nextUsedIndexes[$this->getUseDbConfig()][$index]);
 	}
 
 	public function getNextUsedIndexes(): array
 	{
-		return $this->nextUsedIndexes;
+		return $this->nextUsedIndexes[$this->getUseDbConfig()] ?? [];
 	}
 
 	public function getId(): int
@@ -176,7 +195,7 @@ class FindParams
 		$instance = new self($modelClass);
 		$pathCache[] = $instance;
 		$instance->containsParams = $containsParams;
-		$instance->conditions = FindConditions::create();
+		//$instance->conditions = FindConditions::create();
 
 		if (isset($similarFindParams)) {
 			// Musíme přiřadit až na konci, jinak by mohlo být nekompletní
@@ -309,6 +328,10 @@ class FindParams
 		static $query;
 		static $pathCache;
 		if ( ! isset($query)) {
+			if ( ! isset($this->contains[$this->modelClass])) {
+				// Zrychlení
+				return false;
+			}
 			$query = new Query();
 			$query->onEnd[] = function () use (&$query) {
 				$query = null;

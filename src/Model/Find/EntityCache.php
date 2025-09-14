@@ -20,6 +20,8 @@ class EntityCache
 
 	private string $entityClass;
 
+	private string $useDbConfig;
+
 	/**
 	 * První klíč je název sloupce (~vazebního)
 	 * Druhý klíč je hodnota tohoto sloupce
@@ -46,11 +48,12 @@ class EntityCache
 
 	private self $parentEntityCache;
 
-	public function __construct(FindParams $contains)
+	public function __construct(FindParams $findParams)
 	{
-		$this->findParams = $contains;
-		$this->primaryKey = $this->getModel($contains->modelClass)->primaryKey;
-		$this->entityClass = $contains->modelClass::getEntityClass();
+		$this->findParams = $findParams;
+		$this->primaryKey = $this->getModel($findParams->modelClass)->primaryKey;
+		$this->entityClass = $findParams->modelClass::getEntityClass();
+		$this->useDbConfig = $findParams->getUseDbConfig();
 		$this->cache[$this->primaryKey] = [];
 	}
 
@@ -64,6 +67,12 @@ class EntityCache
 		$newCache->entitiesRecursiveAppended = &$fromEntityCache->entitiesRecursiveAppended;
 		$newCache->parentEntityCache = $fromEntityCache;
 		return $newCache;
+	}
+
+
+	public function getUseDbConfig(): string
+	{
+		return $this->useDbConfig;
 	}
 
 

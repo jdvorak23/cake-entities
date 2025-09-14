@@ -116,4 +116,10 @@ class FindConditions
 		$this->orConditionsHistory[] = clone $this->or;
 		return true;
 	}
+
+	public function getLastOrConditionsHistory(): FindOrConditions
+	{
+		$index = array_key_last($this->orConditionsHistory);
+		return $this->orConditionsHistory[$index];
+	}
 }

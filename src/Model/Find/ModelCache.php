@@ -2,12 +2,17 @@
 
 namespace Cesys\CakeEntities\Model\Find;
 
+use Cesys\CakeEntities\Model\GetModelStaticTrait;
+
 class ModelCache
 {
+	use GetModelStaticTrait;
 	/**
-	 * @var EntityCache[]
+	 * První klíč je useDbConfig
+	 * Druhý klíč je spl_object_id FindParams
+	 * @var EntityCache[][]
 	 */
-	private array $cache = [];
+	private array $cache;
 
 	private string $modelClass;
 
@@ -24,16 +29,19 @@ class ModelCache
 
 	public function getEntityCache(FindParams $findParams): ?EntityCache
 	{
-		return $this->cache[$findParams->getId()] ?? null;
+		return $this->cache[$findParams->getUseDbConfig()][$findParams->getId()] ?? null;
 	}
 
 
-	/**
-	 * @return EntityCache[]
-	 */
-	public function getCache(): array
+	public function getCacheCompatibleEntityCache(FindParams $findParams): ?EntityCache
 	{
-		return $this->cache;
+		foreach ($this->cache[$findParams->getUseDbConfig()] ?? [] as $entityCache) {
+			if ($findParams->isCacheCompatibleWith($entityCache->findParams)) {
+				return $entityCache;
+			}
+		}
+
+		return null;
 	}
 
 
@@ -44,48 +52,61 @@ class ModelCache
 	 */
 	public function addEntityCache(EntityCache $entityCache): void
 	{
-		$this->cache[$entityCache->findParams->getId()] = $entityCache;
+		$this->cache[$entityCache->getUseDbConfig()][$entityCache->findParams->getId()] = $entityCache;
 	}
 
 
 	/**
 	 * Sloučení použité cache (po proběhlém findu) do globální cache
-	 * @param ModelCache $modelCache
+	 * @param ModelCache $modelCache Cache použitá ve findu, tj. data z ní budeme "přepisovat" do static (což by měla být globální model cache)
 	 * @return void
 	 */
 	public function mergeCache(self $modelCache): void
 	{
-		$globalEntityCaches = [];
-		foreach ($this->cache as $entityCache) {
-			$globalEntityCaches[spl_object_id($entityCache)] = true;
-		}
-		$merged = [];
-		$toMerge = [];
-		foreach (array_reverse($modelCache->cache) as $entityCache) {
-			if ($parentEntityCache = $entityCache->getParentEntityCache()) {
-				// Pokud má parenta, rovnou ho vynecháme z merge => má sdílenou cache
-				$merged[spl_object_id($parentEntityCache)] = true;
+		$globalEntityCachesList = [];
+		foreach ($this->cache ?? [] as $useDbConfig => $entityCaches) {
+			foreach ($entityCaches as $entityCache) {
+				$globalEntityCachesList[spl_object_id($entityCache)] = true;
 			}
-			if (isset($merged[spl_object_id($entityCache)])) {
-				// Je-li už v mergovaných, nebo se nemá mergovat
-				continue;
-			}
-			$merged[spl_object_id($entityCache)] = true;
-			if ($parentEntityCache && isset($globalEntityCaches[spl_object_id($parentEntityCache)])) {
-				// Pokud má parenta už v globální cache, nebudeme přidávat, už tam je
-				continue;
-			}
-			$toMerge[] = $entityCache;
 		}
 
+		$mergedList = [];
+		$toMerge = [];
+		foreach ($modelCache->cache as $useDbConfig => $entityCaches) {
+			foreach (array_reverse($entityCaches) as $entityCache) {
+				if ($parentEntityCache = $entityCache->getParentEntityCache()) {
+					// Pokud má parenta, rovnou ho vynecháme z merge => má sdílenou cache
+					$mergedList[spl_object_id($parentEntityCache)] = true;
+				}
+				if (isset($mergedList[spl_object_id($entityCache)])) {
+					// Je-li už v mergovaných, nebo se nemá mergovat
+					continue;
+				}
+				$mergedList[spl_object_id($entityCache)] = true;
+				if ($parentEntityCache && isset($globalEntityCachesList[spl_object_id($parentEntityCache)])) {
+					// Pokud má parenta už v globální cache, nebudeme přidávat, už tam je
+					continue;
+				}
+				$toMerge[] = $entityCache;
+			}
+		}
+
+
 		foreach ($toMerge as $entityCache) {
-			foreach ($this->cache as $globalEntityCache) {
-				if ($entityCache->findParams->isCacheCompatibleWith($globalEntityCache->findParams)) {
-					$globalEntityCache->appendFrom($entityCache);
-					continue 2;
+			$entityCacheUseDbConfig = $entityCache->getUseDbConfig();
+			foreach ($this->cache ?? [] as $useDbConfig => $globalEntityCaches) {
+				if ($useDbConfig !== $entityCacheUseDbConfig) {
+					continue;
+				}
+				foreach ($globalEntityCaches as $globalEntityCache) {
+					if ($entityCache->findParams->isCacheCompatibleWith($globalEntityCache->findParams)) {
+						$globalEntityCache->appendFrom($entityCache);
+						continue 3;
+					}
 				}
 			}
-			$this->cache[$entityCache->findParams->getId()] = $entityCache;
+
+			$this->cache[$entityCacheUseDbConfig][$entityCache->findParams->getId()] = $entityCache;
 		}
 	}
 }

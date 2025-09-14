@@ -6,7 +6,7 @@ use Cesys\Utils\Reflection;
 
 abstract class CakeEntity
 {
-    /**
+	/**
      * @var string[][]
 	 * @deprecated
      */
@@ -17,6 +17,13 @@ abstract class CakeEntity
 	 * @deprecated
      */
 	protected static array $excludedFormDbArrays = [];
+
+	private string $useDbConfig;
+
+
+	private function __construct()
+	{
+	}
 
 
     /**
@@ -62,9 +69,22 @@ abstract class CakeEntity
 		return EntityHelper::toDbArray($this);
     }
 
+
 	public function appendFromDbArray(array $data)
 	{
 		EntityHelper::appendFromDbArray($this, $data);
+	}
+
+
+	public function getUseDbConfig(): string
+	{
+		return $this->useDbConfig;
+	}
+
+
+	public function setUseDbConfig(string $useDbConfig): void
+	{
+		$this->useDbConfig = $useDbConfig;
 	}
 
 

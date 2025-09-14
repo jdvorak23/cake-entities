@@ -6,7 +6,6 @@ use Cesys\CakeEntities\Model\Entities\CakeEntity;
 use Cesys\CakeEntities\Model\Entities\ColumnProperty;
 use Cesys\CakeEntities\Model\Entities\EntityHelper;
 use Cesys\CakeEntities\Model\Entities\RelatedProperty;
-use Cesys\CakeEntities\Model\Find\Cache;
 use Cesys\CakeEntities\Model\Find\EntityCache;
 use Cesys\CakeEntities\Model\Find\FindConditions;
 use Cesys\CakeEntities\Model\Find\CakeParams;
@@ -17,8 +16,7 @@ use Cesys\CakeEntities\Model\Recursion\FindQuery;
 use Cesys\CakeEntities\Model\Recursion\Query;
 use Cesys\CakeEntities\Model\Recursion\Timer;
 use Cesys\Utils\Arrays;
-use Cesys\Utils\Reflection;
-use Nette\InvalidStateException;
+use Cesys\Utils\CachingIterator;
 
 /**
  * Pokud v use tříde je definován konstruktor, je v něm potřeba volat $this->lazyModelTraitConstructor();
@@ -42,14 +40,23 @@ trait EntityAppModelTrait
 
 	protected array $otherContains = [];
 
+	protected array $defaultContainsParams = [];
+
+	/**
+	 * Sem se uloží v static::getFullContains aktuální useDbConfig jaký je před spuštěním findů
+	 * @var string
+	 * @internal
+	 */
+	private string $initUseDbConfig;
+
+	//private ?array $multiUseDbConfigs = null;
+
 	private static ?string $usedOtherContains = null;
 
     /**
      * @var array|null
      */
     private ?array $temporaryContains = null;
-
-	protected array $defaultContainsParams = [];
 
     /**
      * Uložené default hodnoty všech sloupců tabulky, které mají default
@@ -84,9 +91,12 @@ trait EntityAppModelTrait
 			$query->onEnd[] = function () use (&$query, $resetTemporaryContains) {
 				if ($resetTemporaryContains) {
 					self::$usedOtherContains = null;
-					foreach (array_unique($query->path) as $modelClass) {
-						/** @var static $Model */
-						$Model = $this->getModel($modelClass);
+				}
+				foreach (array_unique($query->path) as $modelClass) {
+					/** @var static $Model */
+					$Model = $this->getModel($modelClass);
+					$Model->setInitUseDbConfig((string) $Model->useDbConfig);
+					if ($resetTemporaryContains) {
 						$Model->setTemporaryContains();
 					}
 				}
@@ -258,6 +268,42 @@ trait EntityAppModelTrait
 		return $this->defaultContainsParams;
 	}
 
+	/*public function setMultiUseDbConfigs(?array $useDbConfigs = null, bool $appendActive = false): void
+	{
+		if ( ! $useDbConfigs) {
+			$this->multiUseDbConfigs = null;
+			return;
+		}
+		if ($appendActive) {
+			$useDbConfigs[] = (string) $this->useDbConfig;
+		}
+		$this->multiUseDbConfigs = array_values($useDbConfigs);
+	}*/
+
+
+	public function getInitUseDbConfig(): string
+	{
+		return $this->initUseDbConfig;
+	}
+
+
+	/**
+	 * @param RelatedProperty $relatedProperty
+	 * @param E $entity
+	 * @return string
+	 */
+	public function getDynamicUseDbConfig(RelatedProperty $relatedProperty, CakeEntity $entity): string
+	{
+		$childModel = $this->getModel($relatedProperty->relatedColumnProperty->entityClass::getModelClass());
+		if ($this->getInitUseDbConfig() === $childModel->getInitUseDbConfig()) {
+			// Modely jsou v základu ve stejném configu
+			// Tento (parent) model mohl být přepnutý do jiného. Pokud ano, zvazbený se přepne do toho samého
+			return $entity->getUseDbConfig();
+		}
+		return (string) $childModel->useDbConfig;
+	}
+
+
 
     /**
      * @param array $params
@@ -292,8 +338,8 @@ trait EntityAppModelTrait
         $debugBacktrace = debug_backtrace(!DEBUG_BACKTRACE_PROVIDE_OBJECT|DEBUG_BACKTRACE_IGNORE_ARGS,3);
 		//bdump($debugBacktrace[2]['function']);
         if (
-            in_array($debugBacktrace[1]['function'], ['addOtherEntities', 'addSameEntities', 'addSameEntitiesRecursive','buildSqlSubquery', 'appendSameEntities'])
-            || in_array($debugBacktrace[2]['function'], ['addOtherEntities', 'addSameEntities', 'addSameEntitiesRecursive', 'appendSameEntities'])
+            in_array($debugBacktrace[1]['function'], ['addOtherEntities', 'addSameEntities', 'buildSqlSubquery', 'appendSameEntities'])
+            || in_array($debugBacktrace[2]['function'], ['addOtherEntities', 'addSameEntities', 'appendSameEntities'])
 			|| ($debugBacktrace[1]['function'] === $debugBacktrace[2]['function'] && $debugBacktrace[1]['function'] === 'findEntities')
         ) {
 			return self::$findQueries[array_key_last(self::$findQueries)];
@@ -373,168 +419,124 @@ trait EntityAppModelTrait
 			};
 		}
 
-		$entityCache = $findQuery->getEntityCache();
+		/*$useDbConfigs = [(string) $this->useDbConfig];
+		if ($this->multiUseDbConfigs) {
+			$useDbConfigs = $this->multiUseDbConfigs;
+		}*/
 
 		if ($findQuery->isOriginalCall() && $findQuery->isSystemCall()) {
 			// FindConditions nejsou vytvořeny jedině v případě původního volání findEntities,
 			// které je systémové, takže vložíme conditions do FindConditions
+			/*foreach ($useDbConfigs as $useDbConfig) {
+				$this->useDbConfig = $useDbConfig;
+				$findParams->setConditions(FindConditions::create($params['conditions']));
+			}
+			$this->useDbConfig = $this->getInitUseDbConfig();*/
 			$findParams->setConditions(FindConditions::create($params['conditions']));
 		}
 
-		if ( ! $findParams->getConditions()->stampOrConditions() && ! $findParams->getConditions()->hasStringConditions()) {
-			// Stejné FindOrConditions už byly a není volání recursive
-			$findParams->afterFind();
-			$findParams->getConditions()->clear();
-			$findQuery->findEnd();
-			return [];
-		}
-
-		// Pro systémová volání zde projdeme OR conditions - sloupce a jejich hodnoty
-		// Pokud pro danou hodnotu sloupce ještě není index, je vytvořen = inicializace této hodnoty v cache jako [] => To je nutné, žádné entity ve výsledku nemusí existovat...
-		// Pokud už naopak existuje, je daná hodnota odebrána z or conditions = víme, že tato hodnota je už v cache
-		$preparedIndexes = [];
-		$cachedEntities = [];
-		if ($findQuery->isSystemCall() && ! $findParams->getConditions()->getOr()->isEmpty()) {
-			foreach ($findParams->getConditions()->getOr()->toArray() as $column => $values) {
-				$indexEmpty = false;
-				$preparedIndexes[$column] = $column;
-				foreach ($values as $value) {
-					if ( ! $entityCache->startIndexValue($column, $value)) { // Pokud na daném sloupci ještě není index, vytvoří se
-						// Index pro danou hodnotu sloupce už existuje v cache -> odebereme z conditions
-						$cachedEntities += $entityCache->getEntities($value, $column);
-						$indexEmpty = $findParams->getConditions()->removeOrCondition($column, $value);
-					}
-				}
-				// Mohlo dojít k tomu, že všechny hodnoty sloupce jsou již v cache -> musíme odebrat i tento sloupec
-				if ($indexEmpty) {
-					unset($preparedIndexes[$column]);
-					$findParams->removeNextUsedIndex($column);
-				}
-			}
-		}
-
-
-		// Uložíme si, jestli je toto volání so vl. tabulky s cílem doplnit vlastní recursive entity po 1. nesystémovém volání
-		$isInSelfAfterNonSystem = false;
-		// Pro systémová volání s nekonečnou rekurzí do vlastní tabulky
-		if (
-			$findQuery->containsSameModel() // Je definována rekurze do vlastní tabulky
-			&& $findQuery->isSystemCall()  // Pokud jsou uživatelovy params, nemůžeme zasahovat
-			&& ! $findParams->getConditions()->isEmpty() // Bez podmínek nemá smysl -> výsledek je 0 entit
-			&& $findQuery->isRecursiveToSelfEndlessCacheCompatible() // Můsí být stejné, tj. jde o nekonečnou rekurzi se stejnými params todo speed uložit
-		) {
-			if ($findParams->getConditions()->hasStringConditions()) {
-				// stringConditions vytváří framework v jediném případě - že se ptá na rekurzi do vlastní tabulky
-				// Tedy pokud jsou už definovány, je toto samotné volání findEntites kvůli získání záznamů ze stejné tabulky, do něj zde zasahovat nechceme
-				// K čemuž dojde jen u prvního nesystémového volání s nekonečnou rekurzí do vlastní tabulky
-				// Ale uložíme si, pro pozdější použití
-				if ($findParams === $findParams->contains[static::class]) {
-					$isInSelfAfterNonSystem = true;
-				}
-			} else {
-				$this->addSameEntitiesRecursive([],true);
-			}
-		}
-
-	// "Hlavní" část -> jediné volání \AppModel::find
+		$useDbConfigs = $findParams->getUseDbConfigs();
 		$entities = [];
-		//bdump($findQuery, 'BEFOREFIND - ' . static::class);
-		if ( ! $findQuery->isSystemCall() || ! $findParams->getConditions()->isEmpty()) {
-			// Uživatelovo volání, nebo když je neco v conditions
-			if ( ! $findQuery->isSystemCall()) {
-				// FindConditions jsou při nesystémovém volání vždy zde prázdné => jen uživatelovo params
-				$params = $findQuery->getOriginalParams()->toArray();
-			} else {
-				$params = $findParams->containsParams->toArray();
-				$params['conditions'][] = $findParams->getConditions()->toArray();
-			}
-			// Fields jsou vždy všechny co jsou na entitě, jinak psycho
-			$params['fields'] = $this->getFields();
-			// Vždy -1
-			$params['recursive'] = -1;
-			$entitiesData = $this->find('all', $params);
-			foreach ($entitiesData as $entityData) {
-				$primary = $entityData[$this->alias][$this->primaryKey];
-				if ($entity = $entityCache->getEntity($primary)) {
-					// Pokud je fetchnuta znova entita, která už je v cache, nepřepisuje se!
-				} else {
-					$entity = $this->createEntity($entityData);
-				}
-
-				$entities[$entity->getPrimary()] = $entity;
+		$interrupt = [];
+		foreach ($useDbConfigs as $useDbConfig) {
+			$interruptConfig = false;
+			$this->useDbConfig = $useDbConfig;
+			$entities[$useDbConfig] = $this->doFind($findParams, $findQuery->getEntityCache(), $findQuery->isSystemCall(), $findQuery->getOriginalParams(), $interruptConfig);
+			if ($interruptConfig) {
+				$interrupt[$useDbConfig] = $interruptConfig;
 			}
 		}
-		$entityCache->addAfterFind($entities, $findParams->getNextUsedIndexes(), $preparedIndexes);
-
-		//
-		$entities = $entities + $cachedEntities;
-
-		// Počítadlo, uložené indexy -> reset
+		$this->useDbConfig = $this->getInitUseDbConfig();
 		$findParams->afterFind();
-		// Reset conditions
-		$findParams->getConditions()->clear();
-
-		if ($isInSelfAfterNonSystem) {
-			// Jsme v rekurzi do vlastní tabulky se stejnými FindParams hned po 1. nesystémovém volání
-			// Dále jít nechceme, protože co se děje dále chceme až se všema entitama v předchozím volání,
-			// které budou v případě identické FindParams sloučeny
+		if (count($interrupt) === count($useDbConfigs)) {
+			// Všechny uvedené se mají interruptnout => end
 			$findQuery->findEnd();
 			return [];
 		}
 
+		$findParamsForFind = $findParams->contains;
 		$entitiesToAppendOthers = $entities;
-
-		if ($findQuery->containsSameModel()) {
-			// Řešíme rekurzi do vlastní tabulky
-			$relatedFindParams = $findParams->contains[static::class];
-			if ($findQuery->isRecursiveToSelfEndlessCacheCompatible()) {
-				// Jde o nekonečnou rekurzi s podobnou cache
-				if ( ! $findQuery->isSystemCall()) {
-					// První volání, kde se před find nedoplňují RECURSIVE && nekonečné contains => chceme RECURSIVE
-					$this->addSameEntitiesRecursive($entities);
-					// Tj. toto je vždy jediný případ, kdy to může nastat -> druhé volání po prvním nesystémovém callu s nekonečnou rekurzí do vl. tabulky
-					$this->findEntities([], [], $useCache);
-					// Přiřadily se entity do vl. tabulky, dál se jim ale nic nepřiřadilo
-					// Dále v kódu chceme připojit ke všem entitám, ne jen těm z prvního findu
-					// Nicméně isRecursiveToSelfEndlessCacheCompatible neznamená, že budou připojovat **všechny** z contains,
-					// takže sloučit můžeme jen v případě totožnosti
-					//
-					if ($findParams === $relatedFindParams) {
-						$entitiesToAppendOthers = $findQuery->getEntityCache()->getEntitiesByPrimary();
-					}
-				}
-			} else {
-				// Jsou konečné FindParams, nebo nekompatibilní pro RECURSIVE, pouze flat
-				$this->addSameEntities($entities);
-				$this->findEntities([], [], $useCache);
-			}
-		}
-
-
-        // Připojení entit z ostatních tabulek
-        $this->addOtherEntities($entitiesToAppendOthers);
-
-
-		// Findy other modelů
-		foreach ($findParams->contains as $modelClass => $modelContains) {
-			if (static::class === $modelClass) {
-				// Vyřešeno výše
+		$useDbConfigsIterator = new CachingIterator($useDbConfigs);
+		foreach ($useDbConfigsIterator as $useDbConfig) {
+			if (isset($interrupt[$useDbConfig])) {
 				continue;
 			}
+			$this->useDbConfig = $useDbConfig;
+			if ($findQuery->containsSameModel()) {
+				// Řešíme rekurzi do vlastní tabulky
+				$childFindParams = $findParams->contains[static::class];
+				// Unsetneme pro find, tam kde je potřeba přidáme na začátek
+				unset($findParamsForFind[static::class]);
+				if ($findQuery->isRecursiveToSelfEndlessCacheCompatible()) {
+					// Jde o nekonečnou rekurzi s podobnou cache
+					if ( ! $findQuery->isSystemCall()) {
+						// První volání, kde se před find nedoplňují RECURSIVE && nekonečné contains => chceme RECURSIVE
+						$childFindParamsEntityCache = $findQuery->getEntityCache($childFindParams);
+						$this->addSameEntitiesRecursive($childFindParams, $childFindParamsEntityCache, $entities[$useDbConfig]);
+						$void = false;
+						// Přiřadily se entity do vl. tabulky, entity v relaci z ostatních modelů se připojí až níže
+						if ($findParams === $childFindParams) {
+							// Pokud jsou FindParams totožné (což je pouze podmnožina možností FindQuery::isRecursiveToSelfEndlessCacheCompatible),
+							// chceme entity v relaci z ostatních modelů připojit rovnou všem získaným entitám, ne jen těm z prvního findu
+							$entitiesToAppendOthers[$useDbConfig] = $this->doFind($childFindParams, $childFindParamsEntityCache, true, null, $void);
+							if ($useDbConfigsIterator->isLast()) {
+								// Při poslední iteraci vyresetujeme
+								// Jsme v tomto případě určite inFindParamsRecursion, takže use se nemá odečíst
+								$childFindParams->afterFind(false);
+							}
+						} else {
+							// Zde nás vrácené entity nezajímají (ty co potřebujeme už máme), Do tohodle nodu ještě půjdeme znova, jen jsme si fetchnuli "dopředu"
+							$this->doFind($childFindParams, $childFindParamsEntityCache, true, null, $void);
+							// Vytáhli jsme si entity "dopředu", vyčistíme conditions
+							$childFindParams->getConditions()->clear();
+							// A přidáme je flat, tím se nám správně v podřazeném volání připojí ostatní entity v relaci
+							$this->addSameEntities($entities[$useDbConfig]);
+							$findParamsForFind = [static::class => $childFindParams] + $findParamsForFind;
+						}
+					} else {
+						// Recursive při systémovém volání se přidává do FindConditions ve static::doFind(), tj. bylo vyřešeno výše
+						// A byly vráceny správně entity podle toho, jestli jsou FindParams totožné či nikoli
+						if ($findParams === $childFindParams) {
+							// Nic nemusíme dělat
+						} else {
+							// Zde musíme vysílat do dalších findů, kvůli tomu, aby se správně přiřadily ostatní entity v relaci
+							// Chceme připojit jenom k entitám, které jsou na prvním "levelu"
+							// A přidáme je flat, tím se nám správně v podřazeném volání připojí ostatní entity v relaci
+							// static::doFind() je napsaný tak, že v tomto případě nám vrátilo jen entity na "prvním levelu" tj. to, co bylo v OR conditions
+							// tj. other připojimeme správně
+							$this->addSameEntities($entities[$useDbConfig]);
+							$findParamsForFind = [static::class => $childFindParams] + $findParamsForFind;
+						}
+					}
+					// V obou případech už je find vyřešen
+				} else {
+					// Jsou konečné FindParams, nebo nekompatibilní pro RECURSIVE, pouze flat
+					$this->addSameEntities($entities[$useDbConfig]);
+					// V tomto případě find zase přidáme - na začátek
+					$findParamsForFind = [static::class => $childFindParams] + $findParamsForFind;
+				}
+			}
+			// Připojení entit z ostatních tabulek
+			$this->addOtherEntities($entitiesToAppendOthers[$useDbConfig]);
+		}
+		$this->useDbConfig = $this->getInitUseDbConfig();
+
+		// Volání findEntities u modelů
+		foreach ($findParamsForFind as $modelClass => $modelFindParams) {
 			$isInFindParamsRecursion = $findQuery->isChildModelInFindParamsRecursion($modelClass);
-			if ($modelContains->hasNextStandardFind($isInFindParamsRecursion)) {
+			if ($modelFindParams->hasNextStandardFind($isInFindParamsRecursion)) {
 				// Přeskočení, tato 'větev' FindParams se objevuje ještě minimálně 1x ve stromu původních FindParams, tj. ještě budeme
 				// určitě volat v rámci tohoto celkového findu. Můžeme přeskočit, FindConditions pro tuto část větve již byly připojeny
 				if ( ! $isInFindParamsRecursion) {
 					// Jedná se o nevyslání do findu, které ale bylo v nerekurzivních FindParams, a tudíž připočteno do použití
 					// Volá se skipUse, protože chceme jen snížit 'willBeUsed', ale ne smazat nastavené indexy
-					$modelContains->skipUse();
+					$modelFindParams->skipUse();
 				}
 				continue;
 			}
 			/** @var static $Model */
 			$Model = $this->getModel($modelClass);
-			$Model->findEntities([], [], $useCache);
+			$Model->findEntities([], []);
 		}
 
 
@@ -544,11 +546,10 @@ trait EntityAppModelTrait
 			Timer::stop();
 			Timer::getResults();
 			//bdump($findQuery, static::class);
-			//bdump($entities);
 			// Debug
 			$checkedEntities = [];
 			$paramsQueue = new \SplQueue();
-			$paramsQueue[] = [$findQuery->findParams, $entities];
+			$paramsQueue[] = [$findQuery->findParams, $entities[(string) $this->useDbConfig]];
 			foreach ($paramsQueue as [$findParams, $exEntities]) {
 				$entityClass = $findParams->modelClass::getEntityClass();
 				$relatedProperties = EntityHelper::getPropertiesOfOtherEntities($entityClass, array_keys($findParams->contains));
@@ -590,12 +591,136 @@ trait EntityAppModelTrait
 				}
 			}
 			//
-			//bdump($entities, "FINAL FIND ENTITIES");
-            return $entities;
+            return $entities[(string) $this->useDbConfig];
         }
 
         return [];
     }
+
+
+	/**
+	 * @param string $initUseDbConfig
+	 * @return void
+	 * @intarnal pouze pro vnitřní použití
+	 */
+	public function setInitUseDbConfig(string $initUseDbConfig): void
+	{
+		$this->initUseDbConfig = $initUseDbConfig;
+	}
+
+
+	/**
+	 * @param FindQuery $findQuery
+	 * @param bool $interrupt V nadřazeném volání už se dále nemají připojovat entity v relaci
+	 * @return CakeEntity[] Entity, které odpovídají FindConditions ve FindParams => K nim je třeba dále připojit jejich entity v relaci
+	 */
+	private function doFind(
+		FindParams $findParams,
+		EntityCache $entityCache,
+		bool $isSystemCall,
+		?CakeParams $originalParams,
+		bool &$interrupt
+	): array
+	{
+		$interrupt = false;
+
+		// Základní potlačení nekonečné rekurze => stampOrConditions vytvoří "otisk" conditions,
+		// a pokud se dostaneme na ty samé "znovu", ukončíme => interrupt
+		if ( ! $findParams->getConditions()->stampOrConditions() && ! $findParams->getConditions()->hasStringConditions()) {
+			// Stejné FindOrConditions už byly a není volání recursive
+			$interrupt = true;
+			return [];
+		}
+
+		// Pro systémová volání zde projdeme OR conditions - sloupce a jejich hodnoty
+		// Pokud pro danou hodnotu sloupce ještě není index, je vytvořen = inicializace této hodnoty v cache jako [] => To je nutné, žádné entity ve výsledku nemusí existovat...
+		// Pokud už naopak existuje, je daná hodnota odebrána z or conditions = víme, že tato hodnota je už v cache
+		$preparedIndexes = [];
+		$cachedEntities = [];
+		if ($isSystemCall/* && ! $findParams->getConditions()->getOr()->isEmpty()*/) {
+			foreach ($findParams->getConditions()->getOr()->toArray() as $column => $values) {
+				$indexEmpty = false;
+				$preparedIndexes[$column] = $column;
+				foreach ($values as $value) {
+					if ( ! $entityCache->startIndexValue($column, $value)) { // Pokud na daném sloupci ještě není index, vytvoří se
+						// Index pro danou hodnotu sloupce už existuje v cache -> odebereme z conditions
+						$cachedEntities += $entityCache->getEntities($value, $column);
+						$indexEmpty = $findParams->getConditions()->removeOrCondition($column, $value);
+					}
+				}
+				// Mohlo dojít k tomu, že všechny hodnoty sloupce jsou již v cache -> musíme odebrat i tento sloupec
+				if ($indexEmpty) {
+					unset($preparedIndexes[$column]);
+					$findParams->removeNextUsedIndex($column);
+				}
+			}
+		}
+
+		$onlyIndexes = null;
+
+		// Pro systémová volání s nekonečnou rekurzí do vlastní tabulky
+		if (
+			$isSystemCall  // Pokud není sytémové volání = jsou uživatelovy params, nemůžeme zasahovat
+			&& ! $findParams->getConditions()->isEmpty() // Bez podmínek nemá smysl -> výsledek je 0 entit
+			&& 	$findParams->isRecursiveToSelfEndlessCacheCompatible() // Je rekurze do vl. tabulky a jde o nekonečnou rekurzi se stejnými params a kompatibilními contains todo speed uložit
+			&& ! $findParams->getConditions()->hasStringConditions()
+			// stringConditions vytváří framework v jediném případě - že se ptá na rekurzi do vlastní tabulky
+			// Tedy pokud jsou zde už definovány, je toto samotné volání findEntites kvůli získání záznamů ze stejné tabulky, do něj zde zasahovat nechceme
+			// K čemuž dojde jen u prvního nesystémového volání s nekonečnou rekurzí do vlastní tabulky
+		) {
+			if ($findParams !== $findParams->contains[static::class]) {
+				// Pokud nejsou ekvivalentní FindParams, budeme vracet jenom ty entity, které jsou v původních OR conditions
+				$onlyIndexes = $findParams->getConditions()->getLastOrConditionsHistory()->toArray();
+			}
+			// Recursive volání do vl. tabulky, podmínky z FindConditions se transformují do subquery v recursive
+			$this->addSameEntitiesRecursive($findParams, $entityCache, [],true);
+		}
+
+
+		// "Hlavní" část -> jediné volání \AppModel::find
+		$entities = [];
+		//bdump($findQuery, 'BEFOREFIND - ' . static::class);
+		if ( ! $isSystemCall || ! $findParams->getConditions()->isEmpty()) {
+			// Uživatelovo volání, nebo když je neco v conditions
+			if ( ! $isSystemCall) {
+				// FindConditions jsou při nesystémovém volání vždy zde prázdné => jen uživatelovo params
+				$params = $originalParams->toArray();
+			} else {
+				$params = $findParams->containsParams->toArray();
+				$params['conditions'][] = $findParams->getConditions()->toArray();
+			}
+			// Fields jsou vždy všechny co jsou na entitě, jinak psycho
+			$params['fields'] = $this->getFields();
+			// Vždy -1
+			$params['recursive'] = -1;
+			$entitiesData = $this->find('all', $params);
+			foreach ($entitiesData as $entityData) {
+				$primary = $entityData[$this->alias][$this->primaryKey];
+				if ($entity = $entityCache->getEntity($primary)) {
+					// Pokud je fetchnuta znova entita, která už je v cache, nepřepisuje se!
+				} else {
+					$entity = $this->createEntity($entityData);
+				}
+
+				$entities[$entity->getPrimary()] = $entity;
+			}
+		}
+		$entityCache->addAfterFind($entities, $findParams->getNextUsedIndexes(), $preparedIndexes);
+		$entities = $entities + $cachedEntities;
+
+		if (isset($onlyIndexes)) {
+			// Bylo zde připojené recursive a chceme vrátit (rozdílné FindParams) jenom přímo dotazované entity přes OR
+			$onlyEntities = [];
+			foreach ($onlyIndexes as $column => $values) {
+				foreach ($values as $value) {
+					$onlyEntities += $entityCache->getEntities($value, $column);
+				}
+			}
+			$entities = $onlyEntities;
+		}
+
+		return $entities;
+	}
 
 
     /**
@@ -631,6 +756,7 @@ trait EntityAppModelTrait
 
 
     /**
+	 * Při přetížení vždy volat tenot parent!!!
      * @param ?array $data
      * @return E
      */
@@ -643,7 +769,9 @@ trait EntityAppModelTrait
         }
         /** @var class-string<E> $entityClass */
         $entityClass = static::getEntityClass();
-        return $entityClass::createFromDbArray($data);
+		$entity = $entityClass::createFromDbArray($data);
+		$entity->setUseDbConfig($this->useDbConfig);
+        return $entity;
     }
 
 
@@ -880,17 +1008,21 @@ trait EntityAppModelTrait
 	 * @param bool $fromSubQuery
 	 * @return void
 	 */
-    private function addSameEntitiesRecursive(array $entities, bool $fromSubQuery = false): void
+    private function addSameEntitiesRecursive(
+		FindParams $findParams,
+		EntityCache $entityCache,
+		array $entities,
+		bool $fromSubQuery = false
+	): void
     {
-		$findQuery = $this->getFindQuery();
 		if ($fromSubQuery) {
 			$entities = [];
 		} elseif ( ! $entities) {
             return;
         }
 
-		$findParams = $fromSubQuery ? $findQuery->getFindParams() : $findQuery->getFindParams([static::class]);
-		$entityCache = $findQuery->getEntityCache($findParams);
+		/*$findParams = $fromSubQuery ? $findQuery->getFindParams() : $findQuery->getFindParams([static::class]);
+		$entityCache = $findQuery->getEntityCache($findParams);*/
 
         $selects = [
             'ascendants' => [],
@@ -1082,6 +1214,7 @@ trait EntityAppModelTrait
         $findQuery = $this->getFindQuery();
 		$findParams = $findQuery->getFindParams();
 
+
         if ( ! $findParams->contains) {
             return;
         }
@@ -1090,6 +1223,8 @@ trait EntityAppModelTrait
 
 		foreach (EntityHelper::getPropertiesOfOtherEntities(static::getEntityClass(), $containedModels) as $relatedProperty) {
 			$modelClass = $relatedProperty->relatedColumnProperty->entityClass::getModelClass();
+			/** @var \AppModel&EntityAppModelTrait $Model */
+			$Model = $this->getModel($modelClass);
 
 			$keyPropertyName = $relatedProperty->columnProperty->propertyName;
 			// Vazební sloupec v cizí tabulce
@@ -1105,9 +1240,10 @@ trait EntityAppModelTrait
 						$relatedProperty->property->setValue($entity, []);
 					}
 					if (isset($entity->{$keyPropertyName})) {
-						$modelFindParams->setNextUsedIndex($relatedColumn);
 						// Spojovací klíč má hodnotu
 						$value = EntityHelper::getPropertyDbValue($entity, $relatedProperty->columnProperty);
+						$Model->useDbConfig = $this->getDynamicUseDbConfig($relatedProperty, $entity);
+						$modelFindParams->setNextUsedIndex($relatedColumn);
 						// Přidáme do conditions
 						$modelFindParams->getConditions()->addOrCondition($relatedColumn, $value);
 
@@ -1116,6 +1252,7 @@ trait EntityAppModelTrait
 								$entity->{$relatedProperty->property->getName()}[$otherEntity->getPrimary()] = $otherEntity;
 							});
 						}
+						$Model->useDbConfig = $Model->getInitUseDbConfig();
 					}
 				}
 			} else {
@@ -1126,9 +1263,11 @@ trait EntityAppModelTrait
 						$relatedProperty->property->setValue($entity, null);
 					}
 					if (isset($entity->{$keyPropertyName})) {
-						$modelFindParams->setNextUsedIndex($relatedColumn);
 						// Spojovací klíč má hodnotu
 						$value = EntityHelper::getPropertyDbValue($entity, $relatedProperty->columnProperty);
+						// Přepínání
+						$Model->useDbConfig = $this->getDynamicUseDbConfig($relatedProperty, $entity);
+						$modelFindParams->setNextUsedIndex($relatedColumn);
 						// Přidáme do conditions
 						$modelFindParams->getConditions()->addOrCondition($relatedColumn, $value);
 
@@ -1137,9 +1276,11 @@ trait EntityAppModelTrait
 								$relatedProperty->property->setValue($entity, $otherEntity);
 							});
 						}
+						$Model->useDbConfig = $Model->getInitUseDbConfig();
 					}
 				}
 			}
+
 		}
 	}
 

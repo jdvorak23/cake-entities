@@ -2,11 +2,11 @@
 
 namespace Cesys\CakeEntities\Model\Find;
 
-use Cesys\CakeEntities\Model\GetModelTrait;
+use Cesys\CakeEntities\Model\GetModelStaticTrait;
 
 class Cache
 {
-	use GetModelTrait;
+	use GetModelStaticTrait;
 	/**
 	 * @var ModelCache[]
 	 */
@@ -40,21 +40,22 @@ class Cache
 	private function setEntityCache(FindParams $findParams): void
 	{
 		$modelCache = $this->getModelCache($findParams->modelClass);
-		foreach (array_reverse($modelCache->getCache()) as $entityCache) {
-			if ($findParams->isCacheCompatibleWith($entityCache->findParams)) {
-				$modelCache->addEntityCache(EntityCache::createFrom($entityCache, $findParams));
-				return;
-			}
+
+		// Pokusíme se najít kompatibilní cache
+		if ($entityCache = $modelCache->getCacheCompatibleEntityCache($findParams)) {
+			// Pokud je nalezena, vytvoříme sdílenou
+			$modelCache->addEntityCache(EntityCache::createFrom($entityCache, $findParams));
+			return;
 		}
 
+		// Pokud není nalezena, a pokud se má použít globální cache, pokusíme se najít kompatibilní
 		if ($this->useGlobalCache) {
-			$globalCache = $this->getModel($findParams->modelClass)->getModelCache();
-			/** @var EntityCache $entityCache */
-			foreach ($globalCache->getCache() as $entityCache) {
-				if ($findParams->isCacheCompatibleWith($entityCache->findParams)) {
-					$modelCache->addEntityCache(EntityCache::createFrom($entityCache, $findParams));
-					return;
-				}
+			/** @var ModelCache $globalCache */
+			$globalCache = static::getModelStatic($findParams->modelClass)->getModelCache();
+			if ($entityCache = $globalCache->getCacheCompatibleEntityCache($findParams)) {
+				// Pokud je nalezena, vytvoříme sdílenou
+				$modelCache->addEntityCache(EntityCache::createFrom($entityCache, $findParams));
+				return;
 			}
 		}
 
