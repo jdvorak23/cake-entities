@@ -16,6 +16,6 @@ class Boarding extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfBoarding';
+		return 'EfBoarding';
 	}
 }

@@ -26,7 +26,7 @@ class BookingParticipant extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfBookingParticipant';
+		return 'EfBookingParticipant';
 	}
 
 	public function getFullName(): string

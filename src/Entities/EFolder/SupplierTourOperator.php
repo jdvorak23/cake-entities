@@ -10,11 +10,14 @@ class SupplierTourOperator extends CakeEntity
 	public int $tourOperatorId;
 	public int $supplierId;
 
+	/**
+	 * @var TourOperator tourOperatorId id
+	 */
 	public TourOperator $tourOperator;
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfSupplierTourOperator';
+		return 'EfSupplierTourOperator';
 	}
 
 	public static function getPrimaryPropertyName(): string

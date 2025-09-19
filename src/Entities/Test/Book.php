@@ -11,6 +11,8 @@ class Book extends CakeEntity
     public ?int $parentId;
 
     public ?int $strejdaId;
+
+	public ?string $parentTitle;
     public int $authorId;
 
 	public ?string $authorName;
@@ -28,7 +30,7 @@ class Book extends CakeEntity
      */
     public array $tags;
 
-    public Author $author;
+    public ?Author $author;
 
     /**
      * @var ?Author authorName name
@@ -42,8 +44,13 @@ class Book extends CakeEntity
      */
     public ?Book $strejda;
 
+	/**
+	 * @var Book[] parentTitle title
+	 */
+	public array $byParentTitle;
+
     /**
-     * @var Book[] parent_id
+     * @var Book[] parentId
      */
     public array $children;
 

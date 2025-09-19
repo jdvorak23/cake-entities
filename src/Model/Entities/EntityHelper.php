@@ -2,6 +2,8 @@
 
 namespace Cesys\CakeEntities\Model\Entities;
 
+use Cesys\CakeEntities\Model\EntityAppModelTrait;
+use Cesys\CakeEntities\Model\GetModelStaticTrait;
 use Cesys\Utils\Arrays;
 use Cesys\Utils\Reflection;
 use Cesys\Utils\Strings;
@@ -11,6 +13,7 @@ use Cesys\Utils\Strings;
  */
 class EntityHelper
 {
+	use GetModelStaticTrait;
     private static array $cache = [];
 
 	public static function toDbArray(CakeEntity $entity): array
@@ -36,6 +39,7 @@ class EntityHelper
 		$entityClass = get_class($entity);
 		$modelClass = $entityClass::getModelClass();
 		$data = $data[$modelClass] ?? $data;
+		$data = array_intersect_key($data, static::getColumnPropertiesByColumn($entityClass));
 		foreach ($data as $column => $value) {
 			$columnProperty = static::getColumnPropertiesByColumn($entityClass)[$column] ?? null;
 			if ( ! $columnProperty) {
@@ -150,6 +154,19 @@ class EntityHelper
         if (isset(self::$cache[__METHOD__][$entityClass])) {
             return self::$cache[__METHOD__][$entityClass];
         }
+
+		if ( ! is_a($entityClass, CakeEntity::class, true)) {
+			$class = CakeEntity::class;
+			throw new \InvalidArgumentException("'$entityClass' is not subclass of '$class'.");
+		}
+
+		$model = static::getModelStatic($entityClass::getModelClass());
+		if ( ! in_array(EntityAppModelTrait::class, Reflection::getUsedTraits(get_class($model)))) {
+			$modelClass = get_class($model);
+			throw new \InvalidArgumentException("Model '$modelClass' included in \$contains parameter is not instance of EntityAppModel.");
+		}
+		$schema = $model->schema();
+
         $result = [];
         foreach (Reflection::getReflectionPropertiesOfClass($entityClass) as $property) {
             if ($property->isStatic() || $property->isPrivate() || $property->isProtected() || in_array($property->getName(), $entityClass::getExcludedFromProperties(), true)) {
@@ -160,12 +177,20 @@ class EntityHelper
                     continue;
                 }
             }
+
             $columnProperty = new ColumnProperty();
             $columnProperty->entityClass = $entityClass;
             $columnProperty->propertyName = $property->getName();
             // Todo povolit nějak přes anotaci jinak než fromCamelCaseToSnakeCase?
             $columnProperty->column = Strings::fromCamelCaseToSnakeCase($columnProperty->propertyName);
             $columnProperty->property = $property;
+			if ($columnSchema = $schema[$columnProperty->column] ?? null) {
+				if ($columnSchema['type'] === 'date') {
+					$columnProperty->isDateOnly = true;
+				}
+			} else {
+				throw new \LogicException("Property '$columnProperty->propertyName' of class '$entityClass' have no column '$columnProperty->column' in table '$model->useTable'.");
+			}
             $result[$columnProperty->propertyName] = $columnProperty;
         }
 
@@ -243,10 +268,15 @@ class EntityHelper
 	 * @param class-string<E> $entityClass
 	 * @return RelatedProperty[]
 	 */
-	public static function getPropertiesOfReferencedEntities(string $entityClass): array
+	public static function &getPropertiesOfReferencedEntities(string $entityClass): array
 	{
 		if (isset(self::$cache[__METHOD__][$entityClass])) {
 			return self::$cache[__METHOD__][$entityClass];
+		}
+
+		if ( ! is_a($entityClass, CakeEntity::class, true)) {
+			$class = CakeEntity::class;
+			throw new \InvalidArgumentException("'$entityClass' is not subclass of '$class'.");
 		}
 
 		$result = [];
@@ -258,39 +288,42 @@ class EntityHelper
 				$keyPropertyName = $referencedKeyPropertyName = null;
 				/** @var class-string<E> $referencedEntityClass */
 				$referencedEntityClass = $type->getName();
-				if (is_a($referencedEntityClass, CakeEntity::class, true)) {
-					if ($annotation = Reflection::parseAnnotation($property, 'var')) {
-						// Pokud je @var anotace, explodnem si co je za ní, první část nás nezajímá, to je definice typu, ten už máme z reflexe
-						$parts = preg_split('/[\s\t]+/', trim($annotation), -1, PREG_SPLIT_NO_EMPTY);
-						if (count($parts) === 2) {
-							// Případná první část je property vázaná na vazební sloupec v naší tabulce
-							[, $keyPropertyName] = $parts;
-						} elseif (count($parts) > 2) {
-							// Případná druhá část je property vázaná na vazební sloupec v cizí tabulce
-							[, $keyPropertyName, $referencedKeyPropertyName] = $parts;
-						}
-					}
-					if ( ! $keyPropertyName) {
-						// Defaultní
-						$keyPropertyName = $property->getName() . ucfirst($referencedEntityClass::getPrimaryPropertyName());
-					}
-					if ( ! $referencedKeyPropertyName) {
-						// Defaultní
-						$referencedKeyPropertyName = $referencedEntityClass::getPrimaryPropertyName();
-					}
-
-					if ( ! array_key_exists($keyPropertyName, static::getColumnProperties($entityClass))
-						|| ! array_key_exists($referencedKeyPropertyName, static::getColumnProperties($referencedEntityClass))
-					) {
-						continue;
-					}
-
-					$referenceProperty = new RelatedProperty();
-					$referenceProperty->property = $property;
-					$referenceProperty->columnProperty = static::getColumnProperties($entityClass)[$keyPropertyName];
-					$referenceProperty->relatedColumnProperty = static::getColumnProperties($referencedEntityClass)[$referencedKeyPropertyName];
-					$result[$property->getName()] = $referenceProperty;
+				if ( ! is_a($referencedEntityClass, CakeEntity::class, true)) {
+					continue;
 				}
+				if ($annotation = Reflection::parseAnnotation($property, 'var')) {
+					// Pokud je @var anotace, explodnem si co je za ní, první část nás nezajímá, to je definice typu, ten už máme z reflexe
+					$parts = preg_split('/[\s\t]+/', trim($annotation), -1, PREG_SPLIT_NO_EMPTY);
+					if (count($parts) === 2) {
+						// Případná první část je property vázaná na vazební sloupec v naší tabulce
+						[, $keyPropertyName] = $parts;
+					} elseif (count($parts) > 2) {
+						// Případná druhá část je property vázaná na vazební sloupec v cizí tabulce
+						[, $keyPropertyName, $referencedKeyPropertyName] = $parts;
+					}
+				}
+				if ( ! $keyPropertyName) {
+					// Defaultní
+					$keyPropertyName = $property->getName() . ucfirst($entityClass::getPrimaryPropertyName());
+				}
+				if ( ! $referencedKeyPropertyName) {
+					// Defaultní
+					$referencedKeyPropertyName = $referencedEntityClass::getPrimaryPropertyName();
+				}
+
+				if ( ! array_key_exists($keyPropertyName, static::getColumnProperties($entityClass))
+					|| ! array_key_exists($referencedKeyPropertyName, static::getColumnProperties($referencedEntityClass))
+				) {
+					// todo throw - tady je špatně nastavená anotace, ale asi jen nekdy
+					continue;
+				}
+
+				$referenceProperty = new RelatedProperty();
+				$referenceProperty->property = $property;
+				$referenceProperty->columnProperty = static::getColumnProperties($entityClass)[$keyPropertyName];
+				$referenceProperty->relatedColumnProperty = static::getColumnProperties($referencedEntityClass)[$referencedKeyPropertyName];
+				$result[$property->getName()] = $referenceProperty;
+
 			}
 		}
 
@@ -303,14 +336,13 @@ class EntityHelper
 	 * @param class-string<E> $entityClass
 	 * @return RelatedProperty[]
 	 */
-	public static function getPropertiesOfSelfReferencedEntities(string $entityClass): array
+	public static function &getPropertiesOfSelfReferencedEntities(string $entityClass): array
 	{
 		if (isset(self::$cache[__METHOD__][$entityClass])) {
 			return self::$cache[__METHOD__][$entityClass];
 		}
 		$result = [];
 		foreach (static::getPropertiesOfReferencedEntities($entityClass) as $referenceProperty) {
-			// todo is_a ?
 			if ($referenceProperty->relatedColumnProperty->entityClass === $entityClass) {
 				$result[$referenceProperty->property->getName()] = $referenceProperty;
 			}
@@ -332,7 +364,6 @@ class EntityHelper
 		}
 		$result = [];
 		foreach (static::getPropertiesOfReferencedEntities($entityClass) as $referenceProperty) {
-			// todo is_a ?
 			if ($referenceProperty->relatedColumnProperty->entityClass !== $entityClass) {
 				$result[$referenceProperty->property->getName()] = $referenceProperty;
 			}
@@ -352,6 +383,14 @@ class EntityHelper
 		if (isset(self::$cache[__METHOD__][$entityClass])) {
 			return self::$cache[__METHOD__][$entityClass];
 		}
+
+
+		if ( ! is_a($entityClass, CakeEntity::class, true)) {
+			$class = CakeEntity::class;
+			throw new \InvalidArgumentException("'$entityClass' is not subclass of '$class'.");
+		}
+
+
 		$result = [];
 		foreach (Reflection::getReflectionPropertiesOfClass($entityClass) as $property) {
 			if ($property->isStatic() || $property->isPrivate() || $property->isProtected()) {
@@ -397,6 +436,7 @@ class EntityHelper
 				if ( ! array_key_exists($keyPropertyName, static::getColumnProperties($entityClass))
 					|| ! array_key_exists($referencedKeyPropertyName, static::getColumnProperties($relatedEntityClass))
 				) {
+					// todo throw - tady je špatně nastavená anotace ?
 					continue;
 				}
 
@@ -417,14 +457,13 @@ class EntityHelper
 	 * @param class-string<E> $entityClass
 	 * @return RelatedProperty[]
 	 */
-	public static function getPropertiesOfSelfRelatedEntities(string $entityClass): array
+	public static function &getPropertiesOfSelfRelatedEntities(string $entityClass): array
 	{
 		if (isset(self::$cache[__METHOD__][$entityClass])) {
 			return self::$cache[__METHOD__][$entityClass];
 		}
 		$result = [];
 		foreach (static::getPropertiesOfRelatedEntities($entityClass) as $referenceProperty) {
-			// todo is_a ?
 			if ($referenceProperty->relatedColumnProperty->entityClass === $entityClass) {
 				$result[$referenceProperty->property->getName()] = $referenceProperty;
 			}
@@ -439,14 +478,13 @@ class EntityHelper
 	 * @param class-string<E> $entityClass
 	 * @return RelatedProperty[]
 	 */
-	public static function getPropertiesOfOtherRelatedEntities(string $entityClass): array
+	public static function &getPropertiesOfOtherRelatedEntities(string $entityClass): array
 	{
 		if (isset(self::$cache[__METHOD__][$entityClass])) {
 			return self::$cache[__METHOD__][$entityClass];
 		}
 		$result = [];
 		foreach (static::getPropertiesOfRelatedEntities($entityClass) as $referenceProperty) {
-			// todo is_a ?
 			if ($referenceProperty->relatedColumnProperty->entityClass !== $entityClass) {
 				$result[$referenceProperty->property->getName()] = $referenceProperty;
 			}

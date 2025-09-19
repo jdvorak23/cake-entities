@@ -32,6 +32,8 @@ class FileInvoice extends CakeEntity
 
 	public ?DateTime $lastDay;
 
+	public bool $active;
+
 	public FCurrency $fCurrency;
 
 	public ProcessNumber $processNumber;
@@ -46,7 +48,7 @@ class FileInvoice extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfFileInvoice';
+		return 'EfFileInvoice';
 	}
 
 	public function getTotalAmountToPay(): float
@@ -84,6 +86,34 @@ class FileInvoice extends CakeEntity
 		return $invoices;
 	}
 
+	public function isEditable(): bool
+	{
+		if ($this->invoices) {
+			return false;
+		}
 
+		if ($this->file->inputTemplateId) {
+			return false;
+		}
+
+		if ( ! $this->active) {
+			return false;
+		}
+
+		return true;
+	}
+
+	public function isDeletable(): bool
+	{
+		if ( ! $this->active) {
+			return false;
+		}
+
+		if ($this->invoices) {
+			return false;
+		}
+
+		return true;
+	}
 
 }

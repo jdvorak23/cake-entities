@@ -2,14 +2,15 @@
 
 namespace Cesys\CakeEntities\Entities\Glob;
 
+use Cesys\CakeEntities\Entities\Glob\Interfaces\ICurrency;
 use Cesys\CakeEntities\Model\Entities\CakeEntity;
 
-class Currency extends CakeEntity
+class Currency extends CakeEntity implements ICurrency
 {
 	public int $id;
 
 	/**
-	 * Dle ISO-4217
+	 * 3-písmenný kód dle ISO-4217
 	 * @var string
 	 */
 	public string $code;
@@ -38,5 +39,22 @@ class Currency extends CakeEntity
 	public function round(float $amount): float
 	{
 		return round($amount, $this->round);
+	}
+
+	public function getRoundCount(): int
+	{
+		return $this->round;
+	}
+
+
+	public function getCode(): string
+	{
+		return $this->code;
+	}
+
+
+	public function getId(): int
+	{
+		return $this->id;
 	}
 }

@@ -34,6 +34,6 @@ class FSetting extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfFSettings';
+		return 'EfFSettings';
 	}
 }

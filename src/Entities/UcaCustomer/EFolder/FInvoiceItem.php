@@ -13,6 +13,7 @@ class FInvoiceItem extends CakeEntity
 	const TypeService = 2;
 	const TypeFOfEInvoice = 10; // Položka typu F na faktuře E
 	const TypeUOfEInvoice = 11; // Položka typu U na faktuře E
+	const TypeFeeOfFInvoice = 12; // Položka poplatek na F faktuře
 	const TypeDeposit = 30;
 
 	public int $id;
@@ -49,8 +50,10 @@ class FInvoiceItem extends CakeEntity
 	
 	public ?bool $active;
 
+	public ?FItem $fItem;
+
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfFInvoiceItem';
+		return 'EfFInvoiceItem';
 	}
 }

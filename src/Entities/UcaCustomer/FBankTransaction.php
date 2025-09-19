@@ -78,7 +78,7 @@ class FBankTransaction extends BaseFBankTransaction
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'FBankTransaction';
+		return 'FBankTransaction';
 	}
 
 	protected function getFCurrency(): FCurrency

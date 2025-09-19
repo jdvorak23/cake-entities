@@ -10,6 +10,8 @@ class Supplier extends CakeEntity
 	public int $companyId;
 	public string $brand;
 
+	public bool $isTourOperator;
+
 	public Company $company;
 
 	/**
@@ -19,6 +21,6 @@ class Supplier extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfSupplier';
+		return 'EfSupplier';
 	}
 }

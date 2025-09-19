@@ -13,6 +13,7 @@ trait SaveRepairTrait
     /**
      * Zde je uloženo to, co vrátilo poslední volání save()
      * @var array|bool
+	 * @deprecated
      */
     protected $lastSaveResult;
 
@@ -57,6 +58,7 @@ trait SaveRepairTrait
      */
     public function save($data = null, $validate = true, $fieldList = array())
     {
+		$this->data = false;
         $this->set($data); // Stejně to je přiřazeno v parent::save(), tím se doplní do $this->data i s alias, pokud nebyl
         // Navíc zde již finálně víme id -> pokud bylo v $data, přepsalo / nastavilo hodnotu v $this->id, nebo se bere dříve nastavená, nebo není
 
@@ -79,16 +81,35 @@ trait SaveRepairTrait
             }
         }
 
-
-		// Todo takhle to nejde, metoda save na konci volá callbacky, pokud v callbacku jsou volání další save do
-		// toho samého modelu, pak se přepíše $this->id na něco úplně nesouvisejícího
-		/*bdump($return);
-		bdump($this->id);
-        if (is_array($return) && $this->id) {
-            // Pokud je úspěšný save, doplníme hodnotu primárního klíče, u CREATE se chybně nedoplňuje
-            $return[$this->alias][$this->primaryKey] = $this->id;
-        }*/
 		// Vložíme vyfiltrovaná data, ne původní
         return parent::save($this->data, $validate, $fieldList);
     }
+
+
+	/**
+	 * Toto opravuje debilitu na konci Model::save -> mergování $this->data do $result
+	 * To je hovadina, protože pokud v afterSave se volají další save do toho samotného modelu, začnou se nám míchat nesouvisející data
+	 * V přetížených metodách volat parent::afterSave až ve chvíli, kdy si načteme z $this->data co potřebujeme, většinou klidně jako poslední řádek
+	 * @param $created
+	 * @return void
+	 */
+	public function afterSave($created)
+	{
+		parent::afterSave($created);
+		$this->data = false;
+	}
+
+
+	/**
+	 * Někdy je potřeba logiku v static::save "zkopírovat" a rozšířit (viz UCA EFolderAppModel)
+	 * Pak by volání static::save proběhl pouze redundantní kód, takže dáme možnost "přeskočit", ale stále nám zůstane přepsané exists / afterSave
+	 * @param $data
+	 * @param $validate
+	 * @param $fieldList
+	 * @return mixed
+	 */
+	public function originalSave($data = null, $validate = true, $fieldList = array())
+	{
+		return parent::save($data, $validate, $fieldList);
+	}
 }

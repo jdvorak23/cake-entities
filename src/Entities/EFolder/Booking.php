@@ -111,7 +111,7 @@ class Booking extends CakeEntity implements IBooking
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfBooking';
+		return 'EfBooking';
 	}
 
 	public function getClientName(): string
@@ -135,7 +135,7 @@ class Booking extends CakeEntity implements IBooking
 		$totalPrice = 0;
 		$durationDays = $this->getDurationDays();
 		foreach ($this->prices as $price) {
-			$totalPrice += $this->currency->round($price->getFullAmount($durationDays, $this->currency));
+			$totalPrice += $price->getFullAmount($durationDays, $this->currency);
 		}
 
 		return $this->currency->round($totalPrice);

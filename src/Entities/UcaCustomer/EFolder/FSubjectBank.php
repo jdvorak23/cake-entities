@@ -33,7 +33,7 @@ class FSubjectBank extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfFSubjectBank';
+		return 'EfFSubjectBank';
 	}
 
 	public function getAccountNumber(): ?string

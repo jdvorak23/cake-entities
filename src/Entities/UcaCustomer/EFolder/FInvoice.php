@@ -93,6 +93,15 @@ class FInvoice extends CakeEntity
 	public ?string $commissionNumber;
 
 	/**
+	 * U Delta používáme pro uložení 'cesys_country' => z jakého cesysu přišla objednávka,
+	 * což potřebují při exportu faktur pro určení tagu 'cinnost' a u vydaných pro 'stredisko'
+	 * null, '' => tato informace u faktury není uvedena (staré)
+	 * 'cz', 'sk', 'hu'
+	 * @var string|null
+	 */
+	public ?string $deliveryNoteNumber;
+
+	/**
 	 * Historicky u Delty číslo složky
 	 * @var string|null
 	 */
@@ -165,7 +174,7 @@ class FInvoice extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfFInvoice';
+		return 'EfFInvoice';
 	}
 
 	/**
@@ -236,5 +245,19 @@ class FInvoice extends CakeEntity
 			}
 		}
 		return true;
+	}
+
+
+	public function getItemOfTypeFeeOfInvoiceF(): ?FInvoiceItem
+	{
+		if ($this->fInvoiceTypeId !== FInvoiceType::F) {
+			return null;
+		}
+		foreach ($this->fInvoiceItems as $fInvoiceItem) {
+			if ($fInvoiceItem->fItemId === FInvoiceItem::TypeFeeOfFInvoice) {
+				return $fInvoiceItem;
+			}
+		}
+		return null;
 	}
 }

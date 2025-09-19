@@ -84,7 +84,7 @@ class FBankTransaction extends BaseFBankTransaction
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfFBankTransaction';
+		return 'EfFBankTransaction';
 	}
 
 

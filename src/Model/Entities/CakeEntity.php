@@ -6,17 +6,24 @@ use Cesys\Utils\Reflection;
 
 abstract class CakeEntity
 {
-    /**
+	/**
      * @var string[][]
+	 * @deprecated
      */
     protected static array $modelClasses = [];
 
     /**
      * @var array[]
+	 * @deprecated
      */
 	protected static array $excludedFormDbArrays = [];
 
-	private ColumnProperty $primaryColumnProperty;
+	private string $useDbConfig;
+
+
+	private function __construct()
+	{
+	}
 
 
     /**
@@ -48,15 +55,12 @@ abstract class CakeEntity
 	 */
 	private function getPrimaryColumnProperty(): ColumnProperty
 	{
-		if (isset($this->primaryColumnProperty)) {
-			return $this->primaryColumnProperty;
-		}
-
-		$primaryColumnProperty = EntityHelper::getColumnProperties(static::class)[static::getPrimaryPropertyName()] ?? null;
+		$primaryPropertyName = static::getPrimaryPropertyName();
+		$primaryColumnProperty = EntityHelper::getColumnProperties(static::class)[$primaryPropertyName] ?? null;
 		if ( ! $primaryColumnProperty) {
-			throw new \Exception('Primary column property not found.');
+			throw new \LogicException("Primary column property for property '$primaryPropertyName' not found.");
 		}
-		return $this->primaryColumnProperty = $primaryColumnProperty;
+		return $primaryColumnProperty;
 	}
 
 
@@ -65,9 +69,22 @@ abstract class CakeEntity
 		return EntityHelper::toDbArray($this);
     }
 
+
 	public function appendFromDbArray(array $data)
 	{
 		EntityHelper::appendFromDbArray($this, $data);
+	}
+
+
+	public function getUseDbConfig(): string
+	{
+		return $this->useDbConfig;
+	}
+
+
+	public function setUseDbConfig(string $useDbConfig): void
+	{
+		$this->useDbConfig = $useDbConfig;
 	}
 
 
@@ -88,13 +105,14 @@ abstract class CakeEntity
      */
     public static function getExcludedFromDbArray(): array
     {
-        return static::$excludedFormDbArrays[static::class] ??= ['created', 'modified', 'createdBy', 'modifiedBy'];
+        return ['created', 'modified', 'createdBy', 'modifiedBy'];
     }
 
 
     /**
      * @param array $excludedFromDbArray
      * @return string[] původní $excludedFromDbArray
+	 * @deprecated
      */
     public static function setExcludedFromDbArray(array $excludedFromDbArray): array
     {
@@ -109,13 +127,14 @@ abstract class CakeEntity
      */
     public static function getModelClass(): string
     {
-        return static::$modelClasses[static::class] ??= 'E' . Reflection::getReflectionClass(static::class)->getShortName();
+        return 'E' . Reflection::getReflectionClass(static::class)->getShortName();
     }
 
 
     /**
      * @param string $modelClass
      * @return string původní $modelClass
+	 * @deprecated
      */
     public static function setModelClass(string $modelClass): string
     {

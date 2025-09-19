@@ -2,24 +2,52 @@
 
 namespace Cesys\CakeEntities\Model\Recursion;
 
+use Cesys\Utils\Arrays;
+
 class Query
 {
 	public array $path = [];
 
 	public array $activePath = [];
 
+	public array $onEnd = [];
 
-	public function start(string $modelClass)
+	private array $onModelEnd = [];
+
+
+	public function start(string $modelClass, ?callable $endCallback = null)
 	{
 		$this->path[] = $modelClass;
 		$this->activePath[] = $modelClass;
+		$this->onModelEnd[] = [];
+		if ($endCallback) {
+			$this->addModelEndCallback($endCallback);
+		}
 	}
 
 
 	public function end(): bool
 	{
 		array_pop($this->activePath);
-		return ! $this->activePath;
+		$callbacks = array_pop($this->onModelEnd);
+		Arrays::invoke($callbacks);
+		$isEnd = ! $this->activePath;
+		if ($isEnd) {
+			Arrays::invoke($this->onEnd);
+		}
+
+		return $isEnd;
+	}
+
+	public function addModelEndCallback(callable $callback)
+	{
+		$this->onModelEnd[array_key_last($this->onModelEnd)][] = $callback;
+	}
+
+
+	public function isOriginalCall(): bool
+	{
+		return count($this->activePath) < 2;
 	}
 
 
@@ -44,9 +72,4 @@ class Query
 		return ! in_array($this->getCurrentModelClass(), $activePath, true);
 	}
 
-
-	public function isOriginalCall(): bool
-	{
-		return count($this->activePath) < 2;
-	}
 }

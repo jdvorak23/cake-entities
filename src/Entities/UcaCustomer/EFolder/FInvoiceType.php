@@ -15,9 +15,13 @@ class FInvoiceType extends CakeEntity
 	const E = 12;
 
 	public int $id;
+
+	public ?string $name;
+
 	public ?string $prefix;
+
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfFInvoiceType';
+		return 'EfFInvoiceType';
 	}
 }

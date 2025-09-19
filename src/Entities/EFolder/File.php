@@ -56,8 +56,6 @@ class File extends CakeEntity implements IFile
 	public ?FileInvoice $fileInvoice;
 
 
-
-
     public string $path;
 
 	/**
@@ -70,7 +68,7 @@ class File extends CakeEntity implements IFile
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfFile';
+		return 'EfFile';
 	}
 
 	public static function getExcludedFromProperties(): array
@@ -134,6 +132,46 @@ class File extends CakeEntity implements IFile
 		if ($attach) {
 			$filePathInfo->onChange[] = [$this, 'appendFromFilePathInfo'];
 		}
+	}
+
+
+	public function isDeletable(): bool
+	{
+		if ( ! $this->active) {
+			return false;
+		}
+
+		if ($this->inputTemplateId) {
+			return false;
+		}
+
+		if ($this->fileInvoice) {
+			return false;
+		}
+
+		return true;
+	}
+
+
+	public function isRemovable(): bool
+	{
+		if ( ! $this->active) {
+			return false;
+		}
+
+		if ( ! $this->folderId) {
+			return false;
+		}
+
+		if ( ! $this->inputTemplateId) {
+			return false;
+		}
+
+		if ($this->fileInvoice) {
+			return false;
+		}
+
+		return true;
 	}
 
 }

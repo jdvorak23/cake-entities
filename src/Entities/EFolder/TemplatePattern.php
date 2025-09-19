@@ -19,8 +19,6 @@ class TemplatePattern extends CakeEntity
 
 	public ?string $dateFormat;
 
-    public string $name;
-
     public ?DateTime $created;
 
     public ?DateTime $modified;
@@ -28,7 +26,7 @@ class TemplatePattern extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfTemplatePattern';
+		return 'EfTemplatePattern';
 	}
 
 	public function getReplacePatterns(): array

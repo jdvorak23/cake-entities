@@ -2,212 +2,165 @@
 
 namespace Cesys\CakeEntities\Model\Recursion;
 
-use Cesys\CakeEntities\Model\Entities\CakeEntity;
-use Cesys\CakeEntities\Model\Entities\EntityHelper;
-use Cesys\CakeEntities\Model\Find\Contains;
+use Cesys\CakeEntities\Model\Find\Cache;
+use Cesys\CakeEntities\Model\Find\CakeParams;
+use Cesys\CakeEntities\Model\Find\FindParams;
+use Cesys\CakeEntities\Model\Find\EntityCache;
 
 /**
  * @internal
  */
 class FindQuery extends Query
 {
-	public Contains $contains;
+	public FindParams $findParams;
 
 	/**
-	 * @var Contains[]
+	 * Params původního uživatelova volání
+	 * Nemusí existovat, pokud první volání je systémové (přes getEntities)
+	 * @var CakeParams
 	 */
-	public array $activeContains = [];
+	private CakeParams $originalParams;
 
-	public array $cache = [];
+	public Cache $cache;
 
-	public array $callbacks = [];
+	/**
+	 * @var FindParams[]
+	 */
+	private array $activeFindParamsPath = [];
 
-	private bool $isFirstSystem;
+	private bool $isInFindParamsRecursion = false;
 
-	public function __construct(array $fullContains, bool $isFirstSystem)
+	public function __construct(array $fullContains, bool $useCache, ?CakeParams $originalParams = null)
 	{
-		$this->contains = Contains::create($fullContains);
-		$this->isFirstSystem = $isFirstSystem;
+		if ($originalParams !== null) {
+			$this->originalParams = $originalParams;
+		}
+		$this->findParams = FindParams::create($fullContains, ! isset($this->originalParams));
+	//bdump($this->findParams, 'FINAL Contains');
+		$this->cache = new Cache($useCache);
 	}
 
-	public function findStart(string $modelClass)
+	public function findStart(string $modelClass, ?callable $endCallback = null)
     {
-		$this->start($modelClass);
-		$this->getFullContains();
+		$this->start($modelClass, $endCallback);
+		Timer::start(spl_object_id($this) . ' - ' . $modelClass . count($this->path));
+		$findParams = $this->getFindParamsInPath();
+		// Do $activeFindParamsPath připřadíme až poté, při vyhledávání isInFindParamsRecursion potřebujeme activeFindParamsPath ještě bez přidaných FindParams
+		$isStartingRecursion = ! $this->isInFindParamsRecursion && in_array($findParams, $this->activeFindParamsPath, true);
+
+		if ($this->isInFindParamsRecursion || $isStartingRecursion) {
+			// Pokud jsme v rekurzi, bude model použit +1krát
+			$findParams->willBeUsed++;
+		}
+
+		if ($isStartingRecursion) {
+			$this->isInFindParamsRecursion = true;
+			$this->addModelEndCallback(function () use ($findParams) {
+				$this->isInFindParamsRecursion = false;
+			});
+		}
+		$this->activeFindParamsPath[] = $findParams;
     }
 
     public function findEnd(): bool
     {
-		array_pop($this->activeContains);
+		Timer::stop();
+		array_pop($this->activeFindParamsPath);
 		return $this->end();
     }
 
 	public function isSystemCall(): bool
 	{
-		return ! $this->isOriginalCall() || $this->isFirstSystem;
+		// Pokud nejsou setnuté $originalParams, je i první volání systémové
+		return ! $this->isOriginalCall() || ! isset($this->originalParams);
 	}
 
-
-	public function cacheEntity(CakeEntity $entity, bool $doOtherIndexes = true)
+	public function containsSameModel(?FindParams $findParams = null): bool
 	{
-		// index na id
-		$idColumnProperty = EntityHelper::getColumnProperties(get_class($entity))[$entity::getPrimaryPropertyName()];
-		$this->setCache($idColumnProperty->column, $entity);
-
-		if ( ! $doOtherIndexes ) {
-			return;
-		}
-
-		$columns = $this->getCache();
-		// Index na id už máme
-		unset($columns[$idColumnProperty->column]);
-
-		foreach (array_keys($columns) as $column) {
-			$this->indexEntity($entity, $column);
-		}
-
-	}
-
-
-
-	public  function getCacheIndex(): int
-	{
-		return spl_object_id($this->getFullContains());
-	}
-
-	public function getCache(?string $column = null): ?array
-	{
-		$cache = $this->cache[$this->getCurrentModelClass()][$this->getCacheIndex()] ?? null;
-		if  ($cache === null) {
-			return null;
-		}
-		if ($column === null) {
-			return $cache;
-		}
-		return $cache[$column] ?? null;
-	}
-
-	public function setCache(string $column, $keyValue = null, $value = null): void
-	{
-		if ($keyValue === null) {
-			$this->cache[$this->getCurrentModelClass()][$this->getCacheIndex()][$column] = [];
-			return;
-		}
-		if ($keyValue instanceof CakeEntity) {
-			$value = $keyValue;
-			$keyValue = $value->getPrimary();
-		}
-		if ($column === $this->getPrimaryCacheColumn()) {
-			$this->cache[$this->getCurrentModelClass()][$this->getCacheIndex()][$column][$keyValue] = $value;
-		} elseif ($value === null)  {
-			$this->cache[$this->getCurrentModelClass()][$this->getCacheIndex()][$column][$keyValue] = [];
-		} else {
-			$this->cache[$this->getCurrentModelClass()][$this->getCacheIndex()][$column][$keyValue][$value->getPrimary()] = $value;
-		}
-
-	}
-
-
-
-	public function addIndex(string $column): bool
-	{
-		if ($this->getCache($column) === null) {
-			$this->setCache($column);
-			if ($column !== $this->getPrimaryCacheColumn()) {
-				return true;
-			}
-			if (count($this->cache[$this->getCurrentModelClass()]) > 1) {
-				$caches = $this->cache[$this->getCurrentModelClass()];
-				array_pop($caches);
-				foreach ($caches as $cache) {
-					foreach ($cache['id'] ?? [] as $entity) {
-						$this->cacheEntity($entity, false);
-					}
-				}
-			}
+		$findParams = $findParams ?? $this->getFindParams();
+		if (isset($findParams->contains[$findParams->modelClass])) {
+			// Rekurze do vl. tabulky
 			return true;
 		}
 
 		return false;
 	}
 
-	public function indexEntities(string $column) // ne id
+	public function isInFindParamsRecursion(): bool
 	{
-		foreach ($this->getCache($this->getPrimaryCacheColumn()) as $entity) {
-			if ( ! $entity) {
-				continue;
-			}
-			$this->indexEntity($entity, $column);
-		}
+		return $this->isInFindParamsRecursion;
 	}
 
 
-
-	public function getPrimaryCacheColumn()
+	public function isChildModelInFindParamsRecursion(string $childModelClass): bool
 	{
-		return array_key_first($this->getCache());
+		if ($this->isInFindParamsRecursion()) {
+			return true;
+		}
+
+		$findParams = $this->getFindParams();
+		$childModelFindParams = $findParams->getContainedFindParams($childModelClass);
+		if ($childModelFindParams === $findParams) {
+			// Pro urychlení
+			return true;
+		}
+
+		return in_array($childModelFindParams, $this->activeFindParamsPath, true);
 	}
 
 
-
-
-
-	private function indexEntity(CakeEntity $entity, string $column)
+	/**
+	 * @param FindParams|null $findParams
+	 * @return bool
+	 *  todo asi ukladat nejak?
+	 */
+	public function isRecursiveToSelfEndlessCacheCompatible(?FindParams $findParams = null): bool
 	{
-		$columnProperty = EntityHelper::getColumnPropertiesByColumn(get_class($entity))[$column];
-		$value = $columnProperty->property->getValue($entity);
-		if ($value === null) {
-			// nully nejsou v indexu
-			return;
-		}
-
-		$this->cache[$entity::getModelClass()][$this->getCacheIndex()][$column][$value][$entity->getPrimary()] = $entity;
+		$findParams = $findParams ?? $this->getFindParams();
+		return $findParams->isRecursiveToSelfEndlessCacheCompatible();
 	}
 
 
-	public function getFullContains(array $appendToPath = []): Contains
+	public function getEntityCache(?FindParams $findParams = null): EntityCache
 	{
-		$firstCall = count($this->activePath) > count($this->activeContains);
-		if ($appendToPath || $firstCall) {
-			$contains = $this->contains;
-			$path = array_merge($this->activePath, (array_values($appendToPath)));
-			array_shift($path);
-			foreach ($path as $modelClass) {
-				$contains = $contains->contains[$modelClass];
-			}
-			if ($firstCall) {
-				$this->activeContains[$this->getCurrentModelClass()] = $contains;
-			}
-		} else {
-			$contains = $this->activeContains[$this->getCurrentModelClass()];
-		}
-
-		return $contains;
+		return $this->cache->getEntityCache($findParams ?? $this->getFindParams());
 	}
 
-/*	public function ()
+
+	public function getOriginalParams(): ?CakeParams
 	{
+		return $this->originalParams ?? null;
+	}
 
-	}*/
 
-	public function getBackwardContains()
+	/**
+	 * Vrátí část větve původních FindParams, které odpovídají aktuální cestě - nebo aktuální cestě + $appendToPath
+	 * @param array $appendToPath
+	 * @return FindParams
+	 */
+	public function getFindParams(array $appendToPath = []): FindParams
 	{
-		$interestedModel = $this->getCurrentModelClass();
-
-		$result = [];
-		foreach ($this->getFullContains()->contains as $modelClass => $contains) {
-			/*if ($modelClass === $interestedModel) {
-				continue;
-			}*/
-			foreach ($contains->contains as $modelContains) {
-				if ($modelContains->modelClass === $interestedModel && $this->getCacheIndex() === spl_object_id($modelContains)) {
-					$result[] = $modelClass;
-				}
-			}
-
+		if ($appendToPath) {
+			return $this->getFindParamsInPath($appendToPath);
 		}
 
-		return $result;
+		return $this->activeFindParamsPath[array_key_last($this->activeFindParamsPath)];
+	}
+
+	/**
+	 * @param array $appendToPath
+	 * @return FindParams
+	 */
+	private function getFindParamsInPath(array $appendToPath = []): FindParams
+	{
+		$findParams = $this->findParams;
+		$path = array_merge($this->activePath, (array_values($appendToPath)));
+		array_shift($path);
+		foreach ($path as $modelClass) { // Todo mrknout jen na předchozí ??
+			$findParams = $findParams->getContainedFindParams($modelClass);
+		}
+
+		return $findParams;
 	}
 
 }

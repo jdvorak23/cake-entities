@@ -12,6 +12,6 @@ class TourOperator extends CakeEntity
 
 	public static function getModelClass(): string
 	{
-		return static::$modelClasses[static::class] ??= 'EfTourOperator';
+		return 'EfTourOperator';
 	}
 }
